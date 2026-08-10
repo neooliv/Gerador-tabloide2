@@ -46,12 +46,12 @@
   .btn.small{padding:5px 8px;font-size:11px;}
   .btn.block{width:100%;margin-top:6px;}
   .btn:disabled{opacity:.45;cursor:not-allowed;}
-  .filepick{border:1.5px dashed #384259;border-radius:8px;padding:14px 10px;text-align:center;font-size:12px;color:#9aa5bd;cursor:pointer;display:block;}
+  .filepick{border:1.5px dashed #384259;border-radius:8px;padding:12px 10px;text-align:center;font-size:12px;color:#9aa5bd;cursor:pointer;display:block;}
   .filepick:hover{border-color:var(--accent);color:#cdd6ea;}
   .status{font-size:11px;color:#78e0a4;margin-top:6px;line-height:1.5;}
   .status.err{color:#ff9a9a;}
   .search{margin-bottom:8px;}
-  .prodlist{max-height:260px;overflow-y:auto;border:1px solid #2a3346;border-radius:7px;}
+  .prodlist{max-height:240px;overflow-y:auto;border:1px solid #2a3346;border-radius:7px;}
   .proditem{display:flex;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid #232b3c;cursor:grab;font-size:11.5px;}
   .proditem:last-child{border-bottom:none;}
   .proditem:hover{background:#232c3f;}
@@ -82,18 +82,19 @@
   .p-header .h-title{font-size:23px;font-weight:800;letter-spacing:.01em;line-height:1.15;}
   .p-header .h-sub{font-size:12px;opacity:.85;margin-top:3px;}
 
-  .p-grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:10px;padding:16px 24px;}
+  /* DINAMIC GRID CONTAINER */
+  .p-grid{flex:1;display:grid;gap:10px;padding:16px 24px;}
 
   .slot{border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #e6e6e6;position:relative;}
   .slot-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#b7bcc6;font-size:10.5px;text-align:center;padding:8px;border:1.5px dashed #d8dce3;border-radius:8px;margin:4px;}
   .slot.dragover .slot-empty, .slot.dragover .slot-image{outline:2px dashed var(--accent);outline-offset:-2px;}
-  .slot-image{flex:0 0 60%;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .slot-image{flex:1;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;min-height:0;}
   .img-placeholder{font-size:9.5px;color:#98a0ad;text-align:center;padding:6px;line-height:1.4;}
   .price-badge{position:absolute;bottom:5px;right:5px;border-radius:50%;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;line-height:1.05;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25);}
   .price-badge .rs{font-size:8px;font-weight:700;}
   .price-badge .val{font-size:12.5px;}
   .price-badge .unit{font-size:6.5px;font-weight:600;opacity:.85;}
-  .slot-info{flex:1;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+  .slot-info{flex:0 0 auto;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
   .slot-desc{font-size:9.8px;font-weight:700;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .slot-ean{font-size:8px;opacity:.8;font-weight:600;}
   .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:3;}
@@ -115,25 +116,34 @@
 
     <div class="sec">
       <h3>1 · Planilha de produtos</h3>
-      <label class="filepick" id="filepickLabel">
+      <label class="filepick">
         📄 Clique para enviar .xlsx / .csv<br>
-        <span style="font-size:10px;">Colunas: CODIGO, MARCA, DESCRICAO, VALOR</span>
+        <span style="font-size:10px;">Colunas: CÓD.BARRA, CODIGO, MARCA...</span>
         <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" style="display:none;">
       </label>
       <div id="uploadStatus" class="status" style="display:none;"></div>
     </div>
 
     <div class="sec">
-      <h3>2 · Marca</h3>
+      <h3>2 · Pasta de imagens (Automático)</h3>
+      <label class="filepick">
+        📁 Selecionar pasta de fotos do computador<br>
+        <span style="font-size:10px;">Associa fotos pelo CÓD.BARRA ou CÓDIGO</span>
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;">
+      </label>
+      <div id="folderStatus" class="status" style="display:none;"></div>
+    </div>
+
+    <div class="sec">
+      <h3>3 · Marca</h3>
       <select id="brandSelect"><option value="">— envie a planilha —</option></select>
       <label style="margin-top:10px;">Buscar produto na marca</label>
       <input type="text" id="prodSearch" class="search" placeholder="Nome ou Código...">
       <div class="prodlist" id="prodList"><div class="empty-note">Nenhum produto ainda.</div></div>
-      <div class="empty-note">Arraste um produto para um quadro da grade, ou clique em "Preencher página" abaixo.</div>
     </div>
 
     <div class="sec">
-      <h3>3 · Cabeçalho da marca selecionada</h3>
+      <h3>4 · Cabeçalho da marca selecionada</h3>
       <label>Título</label>
       <input type="text" id="hdrTitle" placeholder="Nome da marca">
       <label>Subtítulo / chamada</label>
@@ -147,7 +157,7 @@
     </div>
 
     <div class="sec">
-      <h3>4 · Rodapé padrão (todas as marcas)</h3>
+      <h3>5 · Rodapé padrão (todas as marcas)</h3>
       <label>Texto do rodapé</label>
       <textarea id="footerText">Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas</textarea>
       <div class="row" style="margin-top:8px;">
@@ -157,7 +167,7 @@
     </div>
 
     <div class="sec">
-      <h3>5 · Cores dos destaques do produto</h3>
+      <h3>6 · Cores dos destaques do produto</h3>
       <div class="grid2">
         <div class="colorrow"><input type="color" id="cardBg"><span>Fundo da imagem</span></div>
         <div class="colorrow"><input type="color" id="pageBg"><span>Fundo da página</span></div>
@@ -169,12 +179,12 @@
     </div>
 
     <div class="sec">
-      <h3>6 · Páginas</h3>
-      <button class="btn block primary" id="addPageBtn">+ Adicionar página (12 produtos)</button>
+      <h3>7 · Páginas</h3>
+      <button class="btn block primary" id="addPageBtn">+ Adicionar página</button>
     </div>
 
     <div class="sec">
-      <h3>7 · Exportar</h3>
+      <h3>8 · Exportar</h3>
       <button class="btn export block" id="exportPngBtn">⬇ Exportar PNG (uma imagem por página)</button>
       <button class="btn export pdf block" id="exportPdfBtn">⬇ Exportar PDF (documento completo)</button>
       <div id="exportStatus" class="status" style="display:none;"></div>
@@ -196,10 +206,11 @@
 <script>
 /* ============ STATE ============ */
 const state = {
-  products: [],           // {id, ean, marca, descricao, valor, image}
+  products: [],           // {id, ean, code, marca, descricao, valor, image}
   brands: [],
   selectedBrand: '',
   brandHeaders: {},       // marca -> {title, sub, bg, text, logo}
+  imagesMap: new Map(),   // cod -> fileDataUrl
   footer: {
     text: 'Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas',
     bg: '#111827', textColor: '#ffffff'
@@ -209,7 +220,7 @@ const state = {
     infoBg: '#1f2937', infoText: '#ffffff',
     priceBg: '#c0392b', priceText: '#ffffff'
   },
-  pages: [] // { brand, slots:[{productId|null}, x12] }
+  pages: [] // { brand, slots:[{productId|null}] }
 };
 
 let dragImageTarget = null;
@@ -242,17 +253,30 @@ function defaultHeaderFor(brand){
 }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i); h|=0;} return h; }
 
-/* ============ UPLOAD & PARSE ============ */
-document.getElementById('filepickLabel').addEventListener('click', e=>{
-  if(e.target.id !== 'xlsxInput') document.getElementById('xlsxInput').click();
+/* Calculate optimal grid (cols, rows) based on items count */
+function calculateGrid(count){
+  if(count <= 1) return {cols: 1, rows: 1};
+  if(count <= 2) return {cols: 1, rows: 2};
+  if(count <= 4) return {cols: 2, rows: 2};
+  if(count <= 6) return {cols: 2, rows: 3};
+  if(count <= 8) return {cols: 2, rows: 4};
+  if(count <= 9) return {cols: 3, rows: 3};
+  return {cols: 4, rows: 3}; // Default max 12
+}
+
+/* ============ FILE UPLOAD ============ */
+document.querySelectorAll('.filepick').forEach(fp=>{
+  fp.addEventListener('click', e=>{
+    const input = fp.querySelector('input');
+    if(input && e.target !== input) input.click();
+  });
 });
+
 document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
   const statusEl = document.getElementById('uploadStatus');
-  statusEl.style.display='block';
-  statusEl.className='status';
-  statusEl.textContent = 'Lendo planilha...';
+  statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent = 'Lendo planilha...';
   try{
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, {type:'array'});
@@ -261,30 +285,32 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     if(rows.length < 2) throw new Error('Planilha vazia ou sem linhas de dados.');
     const headers = rows[0];
     
-    // Mapeamento específico ajustado para a sua planilha
-    const eanIdx = findCol(headers, ['CODIGO', 'CODBARRA', 'EAN', 'CODEAN', 'CODIGOEAN']);
+    const eanIdx = findCol(headers, ['CODBARRA', 'BARRA', 'EAN', 'CODIGOBARRA']);
+    const codeIdx = findCol(headers, ['CODIGO', 'COD', 'ID']);
     const marcaIdx = findCol(headers, ['MARCA', 'BRAND', 'FABRICANTE']);
-    const descIdx = findCol(headers, ['DESCRICAODOPRODUTO', 'DESCRICAO', 'PRODUTO', 'NOME', 'ITEM']);
-    const valorIdx = findCol(headers, ['PCLIQ', 'LIQST', 'VALOR', 'PRECO', 'PRECOUNITARIO', 'VALORUNITARIO']);
-    
-    if(eanIdx===-1 || descIdx===-1 || valorIdx===-1){
-      throw new Error('Não encontrei as colunas obrigatórias. Verifique se a planilha possui CÓDIGO, DESCRICAO e VALOR/PC.LIQ.');
-    }
+    const descIdx = findCol(headers, ['DESCRICAODOPRODUTO', 'DESCRICAO', 'PRODUTO', 'NOME']);
+    const valorIdx = findCol(headers, ['PCLIQ', 'LIQST', 'VALOR', 'PRECO']);
     
     const products = [];
     for(let i=1;i<rows.length;i++){
       const r = rows[i];
       if(!r || r.every(c=>c==='' || c==null)) continue;
-      const ean = String(r[eanIdx]??'').trim();
-      const descricao = String(r[descIdx]??'').trim();
-      if(!ean && !descricao) continue;
+      
+      const ean = eanIdx !== -1 ? String(r[eanIdx]??'').trim() : '';
+      const code = codeIdx !== -1 ? String(r[codeIdx]??'').trim() : '';
+      const descricao = descIdx !== -1 ? String(r[descIdx]??'').trim() : '';
+      
+      if(!ean && !code && !descricao) continue;
       
       const marca = marcaIdx!==-1 && String(r[marcaIdx]??'').trim() !== '' ? String(r[marcaIdx]).trim() : 'GERAL';
       
-      let valor = r[valorIdx];
+      let valor = valorIdx !== -1 ? r[valorIdx] : 0;
       if(typeof valor === 'string') valor = Number(valor.replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || Number(valor.replace(/[^\d.,-]/g,'')) || 0;
       
-      products.push({ id: uid(), ean, marca, descricao, valor: Number(valor)||0, image:null });
+      // Auto-link image if folder already uploaded
+      let img = state.imagesMap.get(normHeader(ean)) || state.imagesMap.get(normHeader(code)) || null;
+
+      products.push({ id: uid(), ean: ean || code, code, marca, descricao, valor: Number(valor)||0, image: img });
     }
     
     if(products.length===0) throw new Error('Nenhum produto válido encontrado na planilha.');
@@ -295,7 +321,7 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     state.selectedBrand = state.brands[0] || '';
     state.pages = [];
     
-    statusEl.textContent = `✔ ${products.length} produtos carregados em ${state.brands.length} marca(s).`;
+    statusEl.textContent = `✔ ${products.length} produtos em ${state.brands.length} marca(s).`;
     renderBrandSelect();
     renderHeaderFields();
     renderProductList();
@@ -304,6 +330,50 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     statusEl.className='status err';
     statusEl.textContent = '✖ ' + err.message;
   }
+});
+
+/* READ FOLDER OF IMAGES */
+document.getElementById('folderInput').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files);
+  const statusEl = document.getElementById('folderStatus');
+  statusEl.style.display = 'block';
+  statusEl.className = 'status';
+  
+  const imgFiles = files.filter(f=>f.type.startsWith('image/'));
+  if(imgFiles.length === 0){
+    statusEl.className = 'status err';
+    statusEl.textContent = '✖ Nenhuma imagem encontrada na pasta.';
+    return;
+  }
+
+  statusEl.textContent = `Vincular ${imgFiles.length} imagens...`;
+  let linked = 0;
+
+  for(const file of imgFiles){
+    // Extracts filename without extension
+    const fname = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    const cleanKey = normHeader(fname);
+    
+    const reader = new FileReader();
+    const dataUrl = await new Promise(res=>{
+      reader.onload = () => res(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    state.imagesMap.set(cleanKey, dataUrl);
+
+    // Apply to loaded products
+    state.products.forEach(p=>{
+      if(normHeader(p.ean) === cleanKey || normHeader(p.code) === cleanKey){
+        p.image = dataUrl;
+        linked++;
+      }
+    });
+  }
+
+  statusEl.textContent = `✔ Pasta lida. ${linked} produto(s) vinculados!`;
+  renderProductList();
+  renderPages();
 });
 
 /* ============ BRAND / HEADER UI ============ */
@@ -368,7 +438,7 @@ function renderProductList(){
   const list = document.getElementById('prodList');
   const q = normHeader(document.getElementById('prodSearch').value);
   const items = state.products.filter(p=>p.marca===state.selectedBrand)
-    .filter(p=> !q || normHeader(p.descricao).includes(q) || normHeader(p.ean).includes(q));
+    .filter(p=> !q || normHeader(p.descricao).includes(q) || normHeader(p.ean).includes(q) || normHeader(p.code).includes(q));
   if(items.length===0){ list.innerHTML = '<div class="empty-note">Nenhum produto encontrado.</div>'; return; }
   list.innerHTML = items.map(p=>`
     <div class="proditem" draggable="true" data-pid="${p.id}">
@@ -390,18 +460,27 @@ document.getElementById('prodSearch').addEventListener('input', renderProductLis
 
 /* ============ PAGES ============ */
 function addPage(){
-  state.pages.push({ brand: state.selectedBrand, slots: Array.from({length:12}, ()=>({productId:null})) });
-  renderPages();
+  const brandProds = state.products.filter(p=>p.marca === state.selectedBrand);
+  const initialSlotsCount = brandProds.length > 0 ? Math.min(brandProds.length, 12) : 12;
+  const pageObj = { brand: state.selectedBrand, slots: Array.from({length: initialSlotsCount}, ()=>({productId:null})) };
+  state.pages.push(pageObj);
+  autoFillPage(state.pages.length - 1);
 }
 document.getElementById('addPageBtn').addEventListener('click', addPage);
 
 function removePage(idx){ state.pages.splice(idx,1); renderPages(); }
-function clearPage(idx){ state.pages[idx].slots = Array.from({length:12}, ()=>({productId:null})); renderPages(); }
+function clearPage(idx){ state.pages[idx].slots = Array.from({length: state.pages[idx].slots.length}, ()=>({productId:null})); renderPages(); }
+
 function autoFillPage(idx){
   const page = state.pages[idx];
   const used = new Set();
   state.pages.forEach(pg=>pg.slots.forEach(s=>{ if(s.productId) used.add(s.productId); }));
   const pool = state.products.filter(p=>p.marca===page.brand && !used.has(p.id));
+  
+  if(pool.length > 0 && pool.length < 12){
+    page.slots = Array.from({length: pool.length}, ()=>({productId:null}));
+  }
+  
   let pi=0;
   page.slots.forEach(s=>{
     if(!s.productId && pi<pool.length){ s.productId = pool[pi].id; pi++; }
@@ -414,11 +493,14 @@ function getProduct(id){ return state.products.find(p=>p.id===id); }
 function renderPages(){
   const cont = document.getElementById('pagesContainer');
   if(state.pages.length===0){
-    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Envie a planilha e clique em "Adicionar página" para começar a montar o tabloide.</div>';
+    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Envie a planilha e clique em "Adicionar página" para gerar o tabloide.</div>';
     return;
   }
   cont.innerHTML = state.pages.map((page, pIdx)=>{
     const hdr = state.brandHeaders[page.brand] || defaultHeaderFor(page.brand||'Marca');
+    const totalSlots = page.slots.length;
+    const {cols, rows} = calculateGrid(totalSlots);
+
     const slotsHtml = page.slots.map((slot, sIdx)=>{
       const prod = slot.productId ? getProduct(slot.productId) : null;
       if(!prod){
@@ -429,7 +511,7 @@ function renderPages(){
       return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
         <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
              style="background-color:${state.style.cardBg};${prod.image?`background-image:url(${prod.image})`:''}">
-          ${!prod.image ? '<div class="img-placeholder">🖼️ Clique ou arraste<br>uma imagem</div>' : ''}
+          ${!prod.image ? '<div class="img-placeholder">🖼️ Clique para carregar<br>imagem local</div>' : ''}
           <div class="price-badge" style="background:${state.style.priceBg};color:${state.style.priceText}">
             <span class="rs">R$</span><span class="val">${fmtPrice(prod.valor)}</span><span class="unit">cada</span>
           </div>
@@ -447,9 +529,9 @@ function renderPages(){
       <div class="page-toolbar">
         <span class="tag">Página ${pIdx+1}</span>
         <select data-page="${pIdx}" class="pageBrandSel">
-          ${state.brands.map(b=>`<option value="${escAttr(b)}" ${b===page.brand?'selected':''}>${escHtml(b)}</option>`).join('')}
+          ${state.brands.map(b=>`<option value="${escAttr(b)}" ${b===page.brand?'selected':''}>${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('')}
         </select>
-        <button class="btn small" data-act="fill" data-page="${pIdx}">Preencher página</button>
+        <button class="btn small" data-act="fill" data-page="${pIdx}">Preencher automático</button>
         <button class="btn small" data-act="clear" data-page="${pIdx}">Limpar</button>
         <button class="btn small danger" data-act="remove" data-page="${pIdx}">Remover página</button>
       </div>
@@ -462,7 +544,9 @@ function renderPages(){
               <div class="h-sub">${escHtml(hdr.sub||'')}</div>
             </div>
           </div>
-          <div class="p-grid">${slotsHtml}</div>
+          <div class="p-grid" style="grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr);">
+            ${slotsHtml}
+          </div>
           <div class="p-footer" style="background:${state.footer.bg};color:${state.footer.textColor};">
             ${escHtml(state.footer.text)}
           </div>
@@ -477,8 +561,9 @@ function renderPages(){
 function attachPageEvents(){
   document.querySelectorAll('.pageBrandSel').forEach(sel=>{
     sel.addEventListener('change', e=>{
-      state.pages[+sel.dataset.page].brand = e.target.value;
-      renderPages();
+      const pIdx = +sel.dataset.page;
+      state.pages[pIdx].brand = e.target.value;
+      autoFillPage(pIdx);
     });
   });
   document.querySelectorAll('[data-act]').forEach(btn=>{
@@ -512,10 +597,7 @@ function attachPageEvents(){
       }
       if(e.dataTransfer.files && e.dataTransfer.files.length){
         assignImageFromFile(p, i, e.dataTransfer.files[0]);
-        return;
       }
-      const uri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/html');
-      if(uri) assignImageFromUrl(p, i, uri);
     });
   });
   document.querySelectorAll('.slot-image').forEach(el=>{
@@ -538,33 +620,7 @@ function assignImageFromFile(pIdx, sIdx, file){
   };
   reader.readAsDataURL(file);
 }
-function assignImageFromUrl(pIdx, sIdx, html){
-  let url = html;
-  const m = html.match(/src=["']([^"']+)["']/i);
-  if(m) url = m[1];
-  url = url.split('\n')[0].trim();
-  if(!/^https?:\/\//i.test(url)) return;
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = ()=>{
-    try{
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img,0,0);
-      const dataUrl = canvas.toDataURL('image/png');
-      const pid = state.pages[pIdx].slots[sIdx].productId;
-      const prod = getProduct(pid);
-      if(prod){ prod.image = dataUrl; renderPages(); renderProductList(); }
-    }catch(err){
-      alert('Não foi possível usar essa imagem diretamente (bloqueio de origem do navegador). Salve a imagem no computador e arraste o arquivo, ou use o botão de clique para enviar.');
-    }
-  };
-  img.onerror = ()=>{
-    alert('Não foi possível carregar essa imagem. Salve-a no computador e arraste o arquivo.');
-  };
-  img.src = url;
-}
+
 document.getElementById('hiddenImgInput').addEventListener('change', e=>{
   const file = e.target.files[0];
   if(file && dragImageTarget) assignImageFromFile(dragImageTarget.page, dragImageTarget.idx, file);
