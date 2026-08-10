@@ -135,7 +135,7 @@
     </div>
 
     <div class="sec">
-      <h3>3 · Marca</h3>
+      <h3>3 · Marca selecionada</h3>
       <select id="brandSelect"><option value="">— envie a planilha —</option></select>
       <label style="margin-top:10px;">Buscar produto na marca</label>
       <input type="text" id="prodSearch" class="search" placeholder="Nome ou Código...">
@@ -143,7 +143,7 @@
     </div>
 
     <div class="sec">
-      <h3>4 · Cabeçalho da marca selecionada</h3>
+      <h3>4 · Cabeçalho da marca</h3>
       <label>Título</label>
       <input type="text" id="hdrTitle" placeholder="Nome da marca">
       <label>Subtítulo / chamada</label>
@@ -157,7 +157,7 @@
     </div>
 
     <div class="sec">
-      <h3>5 · Rodapé padrão (todas as marcas)</h3>
+      <h3>5 · Rodapé padrão</h3>
       <label>Texto do rodapé</label>
       <textarea id="footerText">Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas</textarea>
       <div class="row" style="margin-top:8px;">
@@ -167,7 +167,7 @@
     </div>
 
     <div class="sec">
-      <h3>6 · Cores dos destaques do produto</h3>
+      <h3>6 · Cores dos destaques</h3>
       <div class="grid2">
         <div class="colorrow"><input type="color" id="cardBg"><span>Fundo da imagem</span></div>
         <div class="colorrow"><input type="color" id="pageBg"><span>Fundo da página</span></div>
@@ -179,13 +179,15 @@
     </div>
 
     <div class="sec">
-      <h3>7 · Páginas</h3>
-      <button class="btn block primary" id="addPageBtn">+ Adicionar página</button>
+      <h3>7 · Gerar Páginas</h3>
+      <button class="btn block primary" id="generateAllPagesBtn">✨ Gerar TODAS as páginas da marca</button>
+      <button class="btn block" id="addSinglePageBtn" style="margin-top:6px;">+ Adicionar 1 página vazia</button>
+      <button class="btn block danger" id="clearAllPagesBtn" style="margin-top:6px;">🗑️ Limpar todas páginas</button>
     </div>
 
     <div class="sec">
       <h3>8 · Exportar</h3>
-      <button class="btn export block" id="exportPngBtn">⬇ Exportar PNG (uma imagem por página)</button>
+      <button class="btn export block" id="exportPngBtn">⬇ Exportar PNG (uma por página)</button>
       <button class="btn export pdf block" id="exportPdfBtn">⬇ Exportar PDF (documento completo)</button>
       <div id="exportStatus" class="status" style="display:none;"></div>
     </div>
@@ -206,11 +208,11 @@
 <script>
 /* ============ STATE ============ */
 const state = {
-  products: [],           // {id, ean, code, marca, descricao, valor, image}
+  products: [],
   brands: [],
   selectedBrand: '',
-  brandHeaders: {},       // marca -> {title, sub, bg, text, logo}
-  imagesMap: new Map(),   // cod -> fileDataUrl
+  brandHeaders: {},
+  imagesMap: new Map(),
   footer: {
     text: 'Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas',
     bg: '#111827', textColor: '#ffffff'
@@ -220,7 +222,7 @@ const state = {
     infoBg: '#1f2937', infoText: '#ffffff',
     priceBg: '#c0392b', priceText: '#ffffff'
   },
-  pages: [] // { brand, slots:[{productId|null}] }
+  pages: []
 };
 
 let dragImageTarget = null;
@@ -253,7 +255,6 @@ function defaultHeaderFor(brand){
 }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i); h|=0;} return h; }
 
-/* Calculate optimal grid (cols, rows) based on items count */
 function calculateGrid(count){
   if(count <= 1) return {cols: 1, rows: 1};
   if(count <= 2) return {cols: 1, rows: 2};
@@ -261,7 +262,7 @@ function calculateGrid(count){
   if(count <= 6) return {cols: 2, rows: 3};
   if(count <= 8) return {cols: 2, rows: 4};
   if(count <= 9) return {cols: 3, rows: 3};
-  return {cols: 4, rows: 3}; // Default max 12
+  return {cols: 4, rows: 3};
 }
 
 /* ============ FILE UPLOAD ============ */
@@ -307,7 +308,6 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
       let valor = valorIdx !== -1 ? r[valorIdx] : 0;
       if(typeof valor === 'string') valor = Number(valor.replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || Number(valor.replace(/[^\d.,-]/g,'')) || 0;
       
-      // Auto-link image if folder already uploaded
       let img = state.imagesMap.get(normHeader(ean)) || state.imagesMap.get(normHeader(code)) || null;
 
       products.push({ id: uid(), ean: ean || code, code, marca, descricao, valor: Number(valor)||0, image: img });
@@ -319,20 +319,18 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     state.brands = [...new Set(products.map(p=>p.marca))].sort((a,b)=>a.localeCompare(b));
     state.brands.forEach(b=>{ if(!state.brandHeaders[b]) state.brandHeaders[b] = defaultHeaderFor(b); });
     state.selectedBrand = state.brands[0] || '';
-    state.pages = [];
     
     statusEl.textContent = `✔ ${products.length} produtos em ${state.brands.length} marca(s).`;
     renderBrandSelect();
     renderHeaderFields();
     renderProductList();
-    renderPages();
+    generateAllPagesForBrand(state.selectedBrand);
   }catch(err){
     statusEl.className='status err';
     statusEl.textContent = '✖ ' + err.message;
   }
 });
 
-/* READ FOLDER OF IMAGES */
 document.getElementById('folderInput').addEventListener('change', async (e)=>{
   const files = Array.from(e.target.files);
   const statusEl = document.getElementById('folderStatus');
@@ -350,7 +348,6 @@ document.getElementById('folderInput').addEventListener('change', async (e)=>{
   let linked = 0;
 
   for(const file of imgFiles){
-    // Extracts filename without extension
     const fname = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const cleanKey = normHeader(fname);
     
@@ -362,7 +359,6 @@ document.getElementById('folderInput').addEventListener('change', async (e)=>{
 
     state.imagesMap.set(cleanKey, dataUrl);
 
-    // Apply to loaded products
     state.products.forEach(p=>{
       if(normHeader(p.ean) === cleanKey || normHeader(p.code) === cleanKey){
         p.image = dataUrl;
@@ -371,7 +367,7 @@ document.getElementById('folderInput').addEventListener('change', async (e)=>{
     });
   }
 
-  statusEl.textContent = `✔ Pasta lida. ${linked} produto(s) vinculados!`;
+  statusEl.textContent = `✔ ${linked} produto(s) vinculados com imagens!`;
   renderProductList();
   renderPages();
 });
@@ -379,7 +375,7 @@ document.getElementById('folderInput').addEventListener('change', async (e)=>{
 /* ============ BRAND / HEADER UI ============ */
 function renderBrandSelect(){
   const sel = document.getElementById('brandSelect');
-  sel.innerHTML = state.brands.map(b=>`<option value="${escAttr(b)}">${escHtml(b)}</option>`).join('');
+  sel.innerHTML = state.brands.map(b=>`<option value="${escAttr(b)}">${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('');
   sel.value = state.selectedBrand;
 }
 document.getElementById('brandSelect').addEventListener('change', e=>{
@@ -458,15 +454,49 @@ function renderProductList(){
 }
 document.getElementById('prodSearch').addEventListener('input', renderProductList);
 
-/* ============ PAGES ============ */
-function addPage(){
-  const brandProds = state.products.filter(p=>p.marca === state.selectedBrand);
-  const initialSlotsCount = brandProds.length > 0 ? Math.min(brandProds.length, 12) : 12;
-  const pageObj = { brand: state.selectedBrand, slots: Array.from({length: initialSlotsCount}, ()=>({productId:null})) };
-  state.pages.push(pageObj);
-  autoFillPage(state.pages.length - 1);
+/* ============ PAGES LOGIC ============ */
+
+// GERAR TODAS AS PÁGINAS DE UMA MARCA AUTOMATICAMENTE
+function generateAllPagesForBrand(brand){
+  if(!brand) return;
+  const brandProds = state.products.filter(p => p.marca === brand);
+  if(brandProds.length === 0){
+    alert('Nenhum produto encontrado para essa marca.');
+    return;
+  }
+
+  // Remove páginas antigas da mesma marca
+  state.pages = state.pages.filter(p => p.brand !== brand);
+
+  const chunkSize = 12;
+  for (let i = 0; i < brandProds.length; i += chunkSize) {
+    const chunk = brandProds.slice(i, i + chunkSize);
+    const slots = chunk.map(p => ({ productId: p.id }));
+    
+    state.pages.push({
+      brand: brand,
+      slots: slots
+    });
+  }
+
+  renderPages();
 }
-document.getElementById('addPageBtn').addEventListener('click', addPage);
+
+document.getElementById('generateAllPagesBtn').addEventListener('click', ()=>{
+  generateAllPagesForBrand(state.selectedBrand);
+});
+
+document.getElementById('addSinglePageBtn').addEventListener('click', ()=>{
+  state.pages.push({ brand: state.selectedBrand, slots: Array.from({length: 12}, ()=>({productId:null})) });
+  renderPages();
+});
+
+document.getElementById('clearAllPagesBtn').addEventListener('click', ()=>{
+  if(confirm('Tem certeza que deseja apagar todas as páginas?')){
+    state.pages = [];
+    renderPages();
+  }
+});
 
 function removePage(idx){ state.pages.splice(idx,1); renderPages(); }
 function clearPage(idx){ state.pages[idx].slots = Array.from({length: state.pages[idx].slots.length}, ()=>({productId:null})); renderPages(); }
@@ -493,7 +523,7 @@ function getProduct(id){ return state.products.find(p=>p.id===id); }
 function renderPages(){
   const cont = document.getElementById('pagesContainer');
   if(state.pages.length===0){
-    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Envie a planilha e clique em "Adicionar página" para gerar o tabloide.</div>';
+    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Selecione a marca e clique em "Gerar TODAS as páginas da marca" para criar o encarte.</div>';
     return;
   }
   cont.innerHTML = state.pages.map((page, pIdx)=>{
