@@ -48,7 +48,7 @@
   .btn:disabled{opacity:.45;cursor:not-allowed;}
   .filepick{border:1.5px dashed #384259;border-radius:8px;padding:12px 10px;text-align:center;font-size:12px;color:#9aa5bd;cursor:pointer;display:block;}
   .filepick:hover{border-color:var(--accent);color:#cdd6ea;}
-  .status{font-size:11px;color:#78e0a4;margin-top:6px;line-height:1.5;}
+  .status{font-size:11px;color:#78e0a4;margin-top:6px;line-height:1.5;word-break:break-all;}
   .status.err{color:#ff9a9a;}
   .search{margin-bottom:8px;}
   .prodlist{max-height:240px;overflow-y:auto;border:1px solid #2a3346;border-radius:7px;}
@@ -126,11 +126,9 @@
 
     <div class="sec">
       <h3>2 · Pasta de imagens (Automático)</h3>
-      <label class="filepick">
-        📁 Selecionar pasta de fotos do computador<br>
-        <span style="font-size:10px;">Associa fotos pelo CÓD.BARRA ou CÓDIGO</span>
-        <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;">
-      </label>
+      <button type="button" class="btn block primary" id="selectFolderBtn">
+        📁 Conectar pasta de fotos do PC
+      </button>
       <div id="folderStatus" class="status" style="display:none;"></div>
     </div>
 
@@ -226,6 +224,7 @@ const state = {
 };
 
 let dragImageTarget = null;
+let dirHandle = null;
 
 /* ============ HELPERS ============ */
 function uid(){ return Math.random().toString(36).slice(2,10); }
@@ -265,7 +264,97 @@ function calculateGrid(count){
   return {cols: 4, rows: 3};
 }
 
-/* ============ FILE UPLOAD ============ */
+/* ============ FILE SYSTEM ACCESS API & FOLDER LOGIC ============ */
+document.getElementById('selectFolderBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('folderStatus');
+  try {
+    if (!('showDirectoryPicker' in window)) {
+      alert('Seu navegador não suporta conexão direta com pastas. Use o Google Chrome ou Edge.');
+      return;
+    }
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    statusEl.style.display = 'block';
+    statusEl.className = 'status';
+    statusEl.textContent = `Lendo pasta "${dirHandle.name}"...`;
+
+    let linked = 0;
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file' && entry.name.match(/\.(jpg|jpeg|png|webp)$/i)) {
+        const file = await entry.getFile();
+        const fname = entry.name.substring(0, entry.name.lastIndexOf('.')) || entry.name;
+        const cleanKey = normHeader(fname);
+
+        const reader = new FileReader();
+        const dataUrl = await new Promise(res => {
+          reader.onload = () => res(reader.result);
+          reader.readAsDataURL(file);
+        });
+
+        state.imagesMap.set(cleanKey, dataUrl);
+
+        state.products.forEach(p => {
+          if (normHeader(p.ean) === cleanKey || normHeader(p.code) === cleanKey) {
+            p.image = dataUrl;
+            linked++;
+          }
+        });
+      }
+    }
+    statusEl.textContent = `✔ Conectado! ${linked} foto(s) vinculada(s). Acesso de escrita ativado!`;
+    renderProductList();
+    renderPages();
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      statusEl.style.display = 'block';
+      statusEl.className = 'status err';
+      statusEl.textContent = '✖ Permissão negada ou erro ao conectar pasta.';
+    }
+  }
+});
+
+async function saveImageToDisk(fileName, fileOrBlob) {
+  if (!dirHandle) return;
+  try {
+    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(fileOrBlob);
+    await writable.close();
+  } catch (err) {
+    console.error('Erro ao gravar imagem no disco:', err);
+  }
+}
+
+async function assignImageFromFile(pIdx, sIdx, file) {
+  if (!file.type.startsWith('image/')) return;
+  
+  const pid = state.pages[pIdx].slots[sIdx].productId;
+  const prod = getProduct(pid);
+  if (!prod) return;
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    prod.image = reader.result;
+    renderPages();
+    renderProductList();
+
+    if (dirHandle) {
+      const eanOrCode = prod.ean || prod.code;
+      if (eanOrCode) {
+        const ext = file.name ? (file.name.split('.').pop() || 'jpg') : 'jpg';
+        const fileName = `${eanOrCode}.${ext}`;
+        await saveImageToDisk(fileName, file);
+        
+        const statusEl = document.getElementById('folderStatus');
+        statusEl.style.display = 'block';
+        statusEl.className = 'status';
+        statusEl.textContent = `💾 Salvo na pasta local: ${fileName}`;
+      }
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ============ EXCEL UPLOAD ============ */
 document.querySelectorAll('.filepick').forEach(fp=>{
   fp.addEventListener('click', e=>{
     const input = fp.querySelector('input');
@@ -329,47 +418,6 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     statusEl.className='status err';
     statusEl.textContent = '✖ ' + err.message;
   }
-});
-
-document.getElementById('folderInput').addEventListener('change', async (e)=>{
-  const files = Array.from(e.target.files);
-  const statusEl = document.getElementById('folderStatus');
-  statusEl.style.display = 'block';
-  statusEl.className = 'status';
-  
-  const imgFiles = files.filter(f=>f.type.startsWith('image/'));
-  if(imgFiles.length === 0){
-    statusEl.className = 'status err';
-    statusEl.textContent = '✖ Nenhuma imagem encontrada na pasta.';
-    return;
-  }
-
-  statusEl.textContent = `Vincular ${imgFiles.length} imagens...`;
-  let linked = 0;
-
-  for(const file of imgFiles){
-    const fname = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-    const cleanKey = normHeader(fname);
-    
-    const reader = new FileReader();
-    const dataUrl = await new Promise(res=>{
-      reader.onload = () => res(reader.result);
-      reader.readAsDataURL(file);
-    });
-
-    state.imagesMap.set(cleanKey, dataUrl);
-
-    state.products.forEach(p=>{
-      if(normHeader(p.ean) === cleanKey || normHeader(p.code) === cleanKey){
-        p.image = dataUrl;
-        linked++;
-      }
-    });
-  }
-
-  statusEl.textContent = `✔ ${linked} produto(s) vinculados com imagens!`;
-  renderProductList();
-  renderPages();
 });
 
 /* ============ BRAND / HEADER UI ============ */
@@ -455,8 +503,6 @@ function renderProductList(){
 document.getElementById('prodSearch').addEventListener('input', renderProductList);
 
 /* ============ PAGES LOGIC ============ */
-
-// GERAR TODAS AS PÁGINAS DE UMA MARCA AUTOMATICAMENTE
 function generateAllPagesForBrand(brand){
   if(!brand) return;
   const brandProds = state.products.filter(p => p.marca === brand);
@@ -465,7 +511,6 @@ function generateAllPagesForBrand(brand){
     return;
   }
 
-  // Remove páginas antigas da mesma marca
   state.pages = state.pages.filter(p => p.brand !== brand);
 
   const chunkSize = 12;
@@ -541,7 +586,7 @@ function renderPages(){
       return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
         <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
              style="background-color:${state.style.cardBg};${prod.image?`background-image:url(${prod.image})`:''}">
-          ${!prod.image ? '<div class="img-placeholder">🖼️ Clique para carregar<br>imagem local</div>' : ''}
+          ${!prod.image ? '<div class="img-placeholder">🖼️ Arraste ou clique<br>para carregar foto</div>' : ''}
           <div class="price-badge" style="background:${state.style.priceBg};color:${state.style.priceText}">
             <span class="rs">R$</span><span class="val">${fmtPrice(prod.valor)}</span><span class="unit">cada</span>
           </div>
@@ -614,7 +659,7 @@ function attachPageEvents(){
   document.querySelectorAll('.slot').forEach(el=>{
     el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
     el.addEventListener('dragleave', ()=> el.classList.remove('dragover'));
-    el.addEventListener('drop', e=>{
+    el.addEventListener('drop', async e=>{
       e.preventDefault(); el.classList.remove('dragover');
       const p = +el.dataset.page, i = +el.dataset.idx;
       const raw = e.dataTransfer.getData('text/plain');
@@ -626,7 +671,7 @@ function attachPageEvents(){
         return;
       }
       if(e.dataTransfer.files && e.dataTransfer.files.length){
-        assignImageFromFile(p, i, e.dataTransfer.files[0]);
+        await assignImageFromFile(p, i, e.dataTransfer.files[0]);
       }
     });
   });
@@ -640,20 +685,9 @@ function attachPageEvents(){
   });
 }
 
-function assignImageFromFile(pIdx, sIdx, file){
-  if(!file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    const pid = state.pages[pIdx].slots[sIdx].productId;
-    const prod = getProduct(pid);
-    if(prod){ prod.image = reader.result; renderPages(); renderProductList(); }
-  };
-  reader.readAsDataURL(file);
-}
-
-document.getElementById('hiddenImgInput').addEventListener('change', e=>{
+document.getElementById('hiddenImgInput').addEventListener('change', async e=>{
   const file = e.target.files[0];
-  if(file && dragImageTarget) assignImageFromFile(dragImageTarget.page, dragImageTarget.idx, file);
+  if(file && dragImageTarget) await assignImageFromFile(dragImageTarget.page, dragImageTarget.idx, file);
   e.target.value = '';
   dragImageTarget = null;
 });
