@@ -88,18 +88,31 @@
   .slot{border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #e6e6e6;position:relative;}
   .slot-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#b7bcc6;font-size:10.5px;text-align:center;padding:8px;border:1.5px dashed #d8dce3;border-radius:8px;margin:4px;}
   .slot.dragover .slot-empty, .slot.dragover .slot-image{outline:2px dashed var(--accent);outline-offset:-2px;}
-  .slot-image{flex:1;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;min-height:0;}
+  
+  /* CONTAINER DA IMAGEM COM REDIMENSIONAMENTO */
+  .slot-image-wrap{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .slot-image{width:100%;height:100%;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.05s ease-out;}
+  
+  /* CONTROLE DO SLIDER DE ESCALA */
+  .img-scale-control{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);padding:3px 6px;border-radius:12px;display:flex;align-items:center;gap:4px;z-index:4;opacity:0;transition:opacity 0.2s;}
+  .slot:hover .img-scale-control{opacity:1;}
+  .img-scale-control label{color:#fff;font-size:9px;font-weight:bold;}
+  .img-scale-control input[type=range]{width:50px;height:3px;cursor:pointer;accent-color:var(--accent);}
+
   .img-placeholder{font-size:9.5px;color:#98a0ad;text-align:center;padding:6px;line-height:1.4;}
-  .price-badge{position:absolute;bottom:5px;right:5px;border-radius:50%;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;line-height:1.05;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25);}
+  .price-badge{position:absolute;bottom:5px;right:5px;border-radius:50%;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;line-height:1.05;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;}
   .price-badge .rs{font-size:8px;font-weight:700;}
   .price-badge .val{font-size:12.5px;}
   .price-badge .unit{font-size:6.5px;font-weight:600;opacity:.85;}
-  .slot-info{flex:0 0 auto;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+  .slot-info{flex:0 0 auto;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;z-index:2;}
   .slot-desc{font-size:9.8px;font-weight:700;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .slot-ean{font-size:8px;opacity:.8;font-weight:600;}
-  .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:3;}
+  .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:5;}
 
   .p-footer{flex:0 0 50px;display:flex;align-items:center;justify-content:center;font-size:10.5px;text-align:center;padding:0 20px;line-height:1.35;}
+
+  /* OCULTA O CONTROLE DURANTE A IMPRESSÃO / EXPORTAÇÃO */
+  .rendering .img-scale-control{display:none !important;}
 
   ::-webkit-scrollbar{width:9px;height:9px;}
   ::-webkit-scrollbar-thumb{background:#3a445c;border-radius:6px;}
@@ -399,7 +412,8 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
       
       let img = state.imagesMap.get(normHeader(ean)) || state.imagesMap.get(normHeader(code)) || null;
 
-      products.push({ id: uid(), ean: ean || code, code, marca, descricao, valor: Number(valor)||0, image: img });
+      // Adicionado imgScale: 1 como padrão (100%)
+      products.push({ id: uid(), ean: ean || code, code, marca, descricao, valor: Number(valor)||0, image: img, imgScale: 1 });
     }
     
     if(products.length===0) throw new Error('Nenhum produto válido encontrado na planilha.');
@@ -583,10 +597,18 @@ function renderPages(){
           <div class="slot-empty">Arraste um produto aqui</div>
         </div>`;
       }
+      const scale = prod.imgScale || 1;
       return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
-        <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
-             style="background-color:${state.style.cardBg};${prod.image?`background-image:url(${prod.image})`:''}">
-          ${!prod.image ? '<div class="img-placeholder">🖼️ Arraste ou clique<br>para carregar foto</div>' : ''}
+        <div class="slot-image-wrap" style="background-color:${state.style.cardBg};">
+          <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
+               style="${prod.image?`background-image:url(${prod.image});`:''}transform:scale(${scale});">
+            ${!prod.image ? '<div class="img-placeholder">🖼️ Arraste ou clique<br>para carregar foto</div>' : ''}
+          </div>
+          ${prod.image ? `
+          <div class="img-scale-control" title="Ajustar tamanho da imagem">
+            <label>🔍</label>
+            <input type="range" min="0.5" max="2" step="0.05" value="${scale}" data-pid="${prod.id}" class="scaleSlider">
+          </div>` : ''}
           <div class="price-badge" style="background:${state.style.priceBg};color:${state.style.priceText}">
             <span class="rs">R$</span><span class="val">${fmtPrice(prod.valor)}</span><span class="unit">cada</span>
           </div>
@@ -656,6 +678,20 @@ function attachPageEvents(){
       renderPages();
     });
   });
+
+  // OUVINTE DO SLIDER DE ESCALA
+  document.querySelectorAll('.scaleSlider').forEach(slider=>{
+    slider.addEventListener('input', e=>{
+      const pid = e.target.dataset.pid;
+      const prod = getProduct(pid);
+      if(prod){
+        prod.imgScale = parseFloat(e.target.value);
+        const imgEl = e.target.closest('.slot-image-wrap').querySelector('.slot-image');
+        if(imgEl) imgEl.style.transform = `scale(${prod.imgScale})`;
+      }
+    });
+  });
+
   document.querySelectorAll('.slot').forEach(el=>{
     el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
     el.addEventListener('dragleave', ()=> el.classList.remove('dragover'));
@@ -676,7 +712,8 @@ function attachPageEvents(){
     });
   });
   document.querySelectorAll('.slot-image').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.classList.contains('scaleSlider')) return;
       const p = +el.dataset.page, i = +el.dataset.idx;
       if(!state.pages[p].slots[i].productId) return;
       dragImageTarget = {page:p, idx:i};
@@ -697,6 +734,9 @@ document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
   if(state.pages.length===0){ alert('Adicione ao menos uma página antes de exportar.'); return; }
   const statusEl = document.getElementById('exportStatus');
   statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent='Gerando PDF...';
+  
+  document.body.classList.add('rendering');
+  
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
@@ -712,12 +752,18 @@ document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
     statusEl.textContent = '✔ PDF gerado com sucesso.';
   }catch(err){
     statusEl.className='status err'; statusEl.textContent = '✖ Erro ao gerar PDF: '+err.message;
+  }finally{
+    document.body.classList.remove('rendering');
   }
 });
+
 document.getElementById('exportPngBtn').addEventListener('click', async ()=>{
   if(state.pages.length===0){ alert('Adicione ao menos uma página antes de exportar.'); return; }
   const statusEl = document.getElementById('exportStatus');
   statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent='Gerando PNG...';
+  
+  document.body.classList.add('rendering');
+
   try{
     const els = document.querySelectorAll('.a4-page');
     for(let i=0;i<els.length;i++){
@@ -736,6 +782,8 @@ document.getElementById('exportPngBtn').addEventListener('click', async ()=>{
     statusEl.textContent = '✔ PNG(s) gerado(s) com sucesso.';
   }catch(err){
     statusEl.className='status err'; statusEl.textContent = '✖ Erro ao gerar PNG: '+err.message;
+  }finally{
+    document.body.classList.remove('rendering');
   }
 });
 
