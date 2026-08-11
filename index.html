@@ -130,7 +130,7 @@
       <h3>1 · Planilha de produtos</h3>
       <label class="filepick">
         📄 Clique para enviar .xlsx / .csv<br>
-        <span style="font-size:10px;">Colunas: CODIGO, DESCRICAO, MARCA...</span>
+        <span style="font-size:10px;">Colunas: CÓD.BARRA, CODIGO, DESCRICAO DO PRODUTO...</span>
         <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" style="display:none;">
       </label>
       <div id="uploadStatus" class="status" style="display:none;"></div>
@@ -146,7 +146,7 @@
 
     <div class="sec">
       <h3>3 · Marca selecionada</h3>
-      <select id="brandSelect"><option value="">— envie a planilha —</option></select>
+      <select id="brandSelect"><option value="">— selecione uma marca —</option></select>
       <label style="margin-top:10px;">Buscar produto na marca</label>
       <input type="text" id="prodSearch" class="search" placeholder="Nome ou Código...">
       <div class="prodlist" id="prodList"><div class="empty-note">Nenhum produto ainda.</div></div>
@@ -190,7 +190,7 @@
 
     <div class="sec">
       <h3>7 · Gerar Páginas</h3>
-      <button class="btn block primary" id="generateAllPagesBtn">✨ Gerar TODAS as páginas da marca</button>
+      <button class="btn block primary" id="generateAllPagesBtn">✨ Gerar páginas da marca selecionada</button>
       <button class="btn block" id="addSinglePageBtn" style="margin-top:6px;">+ Adicionar 1 página vazia</button>
       <button class="btn block danger" id="clearAllPagesBtn" style="margin-top:6px;">🗑️ Limpar todas páginas</button>
     </div>
@@ -246,6 +246,10 @@ function fmtPrice(v){
 }
 function normHeader(s){
   return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+function findExactCol(headers, targetName){
+  const normTarget = normHeader(targetName);
+  return headers.findIndex(h => normHeader(h) === normTarget);
 }
 function findCol(headers, candidates){
   const norm = headers.map(normHeader);
@@ -383,13 +387,15 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, {type:'array'});
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''});
     if(rows.length < 2) throw new Error('Planilha vazia ou sem linhas de dados.');
     const headers = rows[0];
     
-    // Busca a coluna CODIGO primeiro (conforme imagem)
-    const codeIdx = findCol(headers, ['CODIGO', 'COD', 'ID']);
-    const eanIdx = findCol(headers, ['CODBARRA', 'BARRA', 'EAN', 'CODIGOBARRA']);
+    // Procura exatamente CODIGO para evitar conflito com CÓD.BARRA
+    let codeIdx = findExactCol(headers, 'CODIGO');
+    if(codeIdx === -1) codeIdx = findCol(headers, ['COD', 'ID']);
+
+    const eanIdx = findCol(headers, ['CODBARRA', 'BARRA', 'EAN']);
     const marcaIdx = findCol(headers, ['MARCA', 'BRAND', 'FABRICANTE']);
     const descIdx = findCol(headers, ['DESCRICAODOPRODUTO', 'DESCRICAO', 'PRODUTO', 'NOME']);
     const valorIdx = findCol(headers, ['PCLIQ', 'LIQST', 'VALOR', 'PRECO']);
@@ -412,7 +418,7 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
       
       let img = state.imagesMap.get(normHeader(code)) || state.imagesMap.get(normHeader(ean)) || null;
 
-      products.push({ id: uid(), code: code || ean, ean, marca, descricao, valor: Number(valor)||0, image: img, imgScale: 1 });
+      products.push({ id: uid(), code: code, ean: ean, marca, descricao, valor: Number(valor)||0, image: img, imgScale: 1 });
     }
     
     if(products.length===0) throw new Error('Nenhum produto válido encontrado na planilha.');
@@ -420,13 +426,15 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     state.products = products;
     state.brands = [...new Set(products.map(p=>p.marca))].sort((a,b)=>a.localeCompare(b));
     state.brands.forEach(b=>{ if(!state.brandHeaders[b]) state.brandHeaders[b] = defaultHeaderFor(b); });
-    state.selectedBrand = state.brands[0] || '';
     
-    statusEl.textContent = `✔ ${products.length} produtos em ${state.brands.length} marca(s).`;
+    state.selectedBrand = '';
+    state.pages = [];
+    
+    statusEl.textContent = `✔ ${products.length} produtos carregados em ${state.brands.length} marca(s). Selecione a marca abaixo.`;
     renderBrandSelect();
     renderHeaderFields();
     renderProductList();
-    generateAllPagesForBrand(state.selectedBrand);
+    renderPages();
   }catch(err){
     statusEl.className='status err';
     statusEl.textContent = '✖ ' + err.message;
@@ -436,26 +444,44 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
 /* ============ BRAND / HEADER UI ============ */
 function renderBrandSelect(){
   const sel = document.getElementById('brandSelect');
-  sel.innerHTML = state.brands.map(b=>`<option value="${escAttr(b)}">${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('');
+  sel.innerHTML = `<option value="">— selecione uma marca —</option>` + 
+    state.brands.map(b=>`<option value="${escAttr(b)}">${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('');
   sel.value = state.selectedBrand;
 }
+
 document.getElementById('brandSelect').addEventListener('change', e=>{
   state.selectedBrand = e.target.value;
   renderHeaderFields();
   renderProductList();
+  if(state.selectedBrand) {
+    generateAllPagesForBrand(state.selectedBrand);
+  } else {
+    state.pages = [];
+    renderPages();
+  }
 });
+
 function renderHeaderFields(){
-  const h = state.brandHeaders[state.selectedBrand] || defaultHeaderFor(state.selectedBrand||'');
+  if(!state.selectedBrand) {
+    document.getElementById('hdrTitle').value = '';
+    document.getElementById('hdrSub').value = '';
+    document.getElementById('hdrBg').value = '#1f2937';
+    document.getElementById('hdrText').value = '#ffffff';
+    return;
+  }
+  const h = state.brandHeaders[state.selectedBrand] || defaultHeaderFor(state.selectedBrand);
   document.getElementById('hdrTitle').value = h.title||'';
   document.getElementById('hdrSub').value = h.sub||'';
   document.getElementById('hdrBg').value = h.bg||'#1f2937';
   document.getElementById('hdrText').value = h.text||'#ffffff';
 }
+
 function currentHeaderObj(){
   if(!state.selectedBrand) return null;
   if(!state.brandHeaders[state.selectedBrand]) state.brandHeaders[state.selectedBrand] = defaultHeaderFor(state.selectedBrand);
   return state.brandHeaders[state.selectedBrand];
 }
+
 ['hdrTitle','hdrSub','hdrBg','hdrText'].forEach(id=>{
   document.getElementById(id).addEventListener('input', ()=>{
     const h = currentHeaderObj(); if(!h) return;
@@ -466,6 +492,7 @@ function currentHeaderObj(){
     renderPages();
   });
 });
+
 document.getElementById('hdrLogoInput').addEventListener('change', e=>{
   const file = e.target.files[0]; if(!file) return;
   const h = currentHeaderObj(); if(!h) return;
@@ -493,6 +520,10 @@ document.getElementById('footerText').addEventListener('input', e=>{ state.foote
 /* ============ PRODUCT LIST ============ */
 function renderProductList(){
   const list = document.getElementById('prodList');
+  if(!state.selectedBrand){
+    list.innerHTML = '<div class="empty-note">Selecione uma marca acima para ver os produtos.</div>';
+    return;
+  }
   const q = normHeader(document.getElementById('prodSearch').value);
   const items = state.products.filter(p=>p.marca===state.selectedBrand)
     .filter(p=> !q || normHeader(p.descricao).includes(q) || normHeader(p.code).includes(q) || normHeader(p.ean).includes(q));
@@ -502,7 +533,7 @@ function renderProductList(){
       <div class="thumb" style="${p.image?`background-image:url(${p.image})`:''}"></div>
       <div class="meta">
         <div class="d">${escHtml(p.descricao)}</div>
-        <div class="e">CÓDIGO: ${escHtml(p.code)}</div>
+        <div class="e">CÓD: ${escHtml(p.code || 'S/C')}</div>
       </div>
       <div class="p">R$ ${fmtPrice(p.valor)}</div>
     </div>`).join('');
@@ -541,10 +572,18 @@ function generateAllPagesForBrand(brand){
 }
 
 document.getElementById('generateAllPagesBtn').addEventListener('click', ()=>{
+  if(!state.selectedBrand){
+    alert('Por favor, selecione uma marca no item 3 antes de gerar as páginas.');
+    return;
+  }
   generateAllPagesForBrand(state.selectedBrand);
 });
 
 document.getElementById('addSinglePageBtn').addEventListener('click', ()=>{
+  if(!state.selectedBrand){
+    alert('Por favor, selecione uma marca antes de adicionar páginas.');
+    return;
+  }
   state.pages.push({ brand: state.selectedBrand, slots: Array.from({length: 12}, ()=>({productId:null})) });
   renderPages();
 });
@@ -581,7 +620,7 @@ function getProduct(id){ return state.products.find(p=>p.id===id); }
 function renderPages(){
   const cont = document.getElementById('pagesContainer');
   if(state.pages.length===0){
-    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Selecione a marca e clique em "Gerar TODAS as páginas da marca" para criar o encarte.</div>';
+    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Selecione uma marca no painel lateral para visualizar e gerar o tabloide.</div>';
     return;
   }
   cont.innerHTML = state.pages.map((page, pIdx)=>{
@@ -615,7 +654,7 @@ function renderPages(){
         <button class="slot-remove" data-page="${pIdx}" data-idx="${sIdx}" title="Remover produto">×</button>
         <div class="slot-info" style="background:${state.style.infoBg};color:${state.style.infoText}">
           <div class="slot-desc">${escHtml(prod.descricao)}</div>
-          <div class="slot-code">CÓDIGO: ${escHtml(prod.code)}</div>
+          <div class="slot-code">CÓD ${escHtml(prod.code || 'S/C')}</div>
         </div>
       </div>`;
     }).join('');
