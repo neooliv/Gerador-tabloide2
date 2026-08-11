@@ -493,8 +493,21 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
       
       const marca = marcaIdx!==-1 && String(r[marcaIdx]??'').trim() !== '' ? String(r[marcaIdx]).trim() : 'GERAL';
       
+      // PARSE CORRIGIDO DE VALORES
       let valor = valorIdx !== -1 ? r[valorIdx] : 0;
-      if(typeof valor === 'string') valor = Number(valor.replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || Number(valor.replace(/[^\d.,-]/g,'')) || 0;
+      if (typeof valor === 'string') {
+        let vStr = valor.trim().replace(/[^\d.,]/g, '');
+        if (vStr.includes(',') && vStr.includes('.')) {
+          vStr = vStr.replace(/\./g, '').replace(',', '.');
+        } else if (vStr.includes(',')) {
+          vStr = vStr.replace(',', '.');
+        }
+        valor = parseFloat(vStr) || 0;
+      } else if (typeof valor === 'number') {
+        valor = valor;
+      } else {
+        valor = 0;
+      }
       
       let img = state.imagesMap.get(normHeader(code)) || state.imagesMap.get(normHeader(ean)) || null;
 
