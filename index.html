@@ -82,11 +82,56 @@
   .p-header .h-title{font-size:23px;font-weight:800;letter-spacing:.01em;line-height:1.15;}
   .p-header .h-sub{font-size:12px;opacity:.85;margin-top:3px;}
 
-  /* DINAMIC GRID CONTAINER */
-  .p-grid{flex:1;display:grid;gap:10px;padding:16px 24px;}
+  /* INTELLIGENT & CENTERED GRID CONTAINER */
+  .p-grid-container{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px 24px;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+  }
+  
+  /* GRID DE TAMANHO PADRÃO UNIFORME */
+  .p-grid{
+    display:grid;
+    gap:12px;
+    justify-content:center;
+    align-content:center;
+    margin:0 auto;
+    width:100%;
+  }
 
-  .slot{border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #e6e6e6;position:relative;}
-  .slot-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#b7bcc6;font-size:10.5px;text-align:center;padding:8px;border:1.5px dashed #d8dce3;border-radius:8px;margin:4px;}
+  /* CARD FIXO COM PROPORÇÃO E TAMANHO PADRÃO */
+  .slot{
+    width:100%;
+    max-width:228px;
+    border-radius:10px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    background:#fff;
+    border:1px solid #e6e6e6;
+    position:relative;
+    margin:0 auto;
+    box-shadow:0 2px 6px rgba(0,0,0,0.04);
+  }
+  .slot-empty{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#b7bcc6;
+    font-size:10.5px;
+    text-align:center;
+    padding:8px;
+    border:1.5px dashed #d8dce3;
+    border-radius:8px;
+    margin:4px;
+    min-height:220px;
+  }
   .slot.dragover .slot-empty, .slot.dragover .slot-image{outline:2px dashed var(--accent);outline-offset:-2px;}
   
   /* CONTAINER 1:1 DA IMAGEM */
@@ -100,11 +145,11 @@
   .img-scale-control input[type=range]{width:50px;height:3px;cursor:pointer;accent-color:var(--accent);}
 
   .img-placeholder{font-size:9.5px;color:#98a0ad;text-align:center;padding:6px;line-height:1.4;}
-  .price-badge{position:absolute;bottom:5px;right:5px;border-radius:50%;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;line-height:1.05;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;}
+  .price-badge{position:absolute;bottom:5px;right:5px;border-radius:50%;width:54px;height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;line-height:1.05;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;}
   .price-badge .rs{font-size:8px;font-weight:700;}
-  .price-badge .val{font-size:12.5px;}
+  .price-badge .val{font-size:12px;}
   .price-badge .unit{font-size:6.5px;font-weight:600;opacity:.85;}
-  .slot-info{flex:1;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;z-index:2;}
+  .slot-info{flex:1;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;z-index:2;min-height:48px;}
   .slot-desc{font-size:9.8px;font-weight:700;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .slot-code{font-size:8.5px;opacity:.85;font-weight:600;margin-top:2px;}
   .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:5;}
@@ -228,7 +273,7 @@ const state = {
     bg: '#111827', textColor: '#ffffff'
   },
   style: {
-    cardBg: '#f4efe6', pageBg: '#ffffff',
+    cardBg: '#ffffff', pageBg: '#ffffff',
     infoBg: '#1f2937', infoText: '#ffffff',
     priceBg: '#c0392b', priceText: '#ffffff'
   },
@@ -270,14 +315,14 @@ function defaultHeaderFor(brand){
 }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i); h|=0;} return h; }
 
-function calculateGrid(count){
-  if(count <= 1) return {cols: 1, rows: 1};
-  if(count <= 2) return {cols: 1, rows: 2};
-  if(count <= 4) return {cols: 2, rows: 2};
-  if(count <= 6) return {cols: 2, rows: 3};
-  if(count <= 8) return {cols: 2, rows: 4};
-  if(count <= 9) return {cols: 3, rows: 3};
-  return {cols: 4, rows: 3};
+/* REORGANIZAÇÃO INTELIGENTE DA GRADE (MANTEINDO OS CARDS NO MESMO TAMANHO E CENTRALIZADOS) */
+function calculateGridConfig(count){
+  if(count <= 1) return { cols: 1, maxCardWidth: '280px' };
+  if(count <= 2) return { cols: 2, maxCardWidth: '260px' };
+  if(count <= 4) return { cols: 2, maxCardWidth: '240px' };
+  if(count <= 6) return { cols: 3, maxCardWidth: '228px' };
+  if(count <= 9) return { cols: 3, maxCardWidth: '228px' };
+  return { cols: 3, maxCardWidth: '228px' };
 }
 
 /* ============ FILE SYSTEM ACCESS API ============ */
@@ -557,7 +602,7 @@ function generateAllPagesForBrand(brand){
 
   state.pages = state.pages.filter(p => p.brand !== brand);
 
-  const chunkSize = 12;
+  const chunkSize = 9;
   for (let i = 0; i < brandProds.length; i += chunkSize) {
     const chunk = brandProds.slice(i, i + chunkSize);
     const slots = chunk.map(p => ({ productId: p.id }));
@@ -584,7 +629,7 @@ document.getElementById('addSinglePageBtn').addEventListener('click', ()=>{
     alert('Por favor, selecione uma marca antes de adicionar páginas.');
     return;
   }
-  state.pages.push({ brand: state.selectedBrand, slots: Array.from({length: 12}, ()=>({productId:null})) });
+  state.pages.push({ brand: state.selectedBrand, slots: Array.from({length: 6}, ()=>({productId:null})) });
   renderPages();
 });
 
@@ -604,8 +649,11 @@ function autoFillPage(idx){
   state.pages.forEach(pg=>pg.slots.forEach(s=>{ if(s.productId) used.add(s.productId); }));
   const pool = state.products.filter(p=>p.marca===page.brand && !used.has(p.id));
   
-  if(pool.length > 0 && pool.length < 12){
-    page.slots = Array.from({length: pool.length}, ()=>({productId:null}));
+  if(pool.length > 0 && page.slots.length < pool.length){
+    const needed = Math.min(pool.length, 9);
+    while(page.slots.length < needed){
+      page.slots.push({productId:null});
+    }
   }
   
   let pi=0;
@@ -625,18 +673,20 @@ function renderPages(){
   }
   cont.innerHTML = state.pages.map((page, pIdx)=>{
     const hdr = state.brandHeaders[page.brand] || defaultHeaderFor(page.brand||'Marca');
-    const totalSlots = page.slots.length;
-    const {cols, rows} = calculateGrid(totalSlots);
+    
+    // Contamos os slots ativos/preenchidos para determinar a organização inteligente
+    const activeSlotsCount = page.slots.filter(s => s.productId !== null).length || page.slots.length || 1;
+    const { cols, maxCardWidth } = calculateGridConfig(activeSlotsCount);
 
     const slotsHtml = page.slots.map((slot, sIdx)=>{
       const prod = slot.productId ? getProduct(slot.productId) : null;
       if(!prod){
-        return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
+        return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}" style="max-width:${maxCardWidth};">
           <div class="slot-empty">Arraste um produto aqui</div>
         </div>`;
       }
       const scale = prod.imgScale || 1;
-      return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
+      return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}" style="max-width:${maxCardWidth};">
         <div class="slot-image-wrap" style="background-color:${state.style.cardBg};">
           <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
                style="${prod.image?`background-image:url(${prod.image});`:''}transform:scale(${scale});">
@@ -679,8 +729,10 @@ function renderPages(){
               <div class="h-sub">${escHtml(hdr.sub||'')}</div>
             </div>
           </div>
-          <div class="p-grid" style="grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr);">
-            ${slotsHtml}
+          <div class="p-grid-container">
+            <div class="p-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
+              ${slotsHtml}
+            </div>
           </div>
           <div class="p-footer" style="background:${state.footer.bg};color:${state.footer.textColor};">
             ${escHtml(state.footer.text)}
@@ -712,7 +764,10 @@ function attachPageEvents(){
   document.querySelectorAll('.slot-remove').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const p = +btn.dataset.page, i = +btn.dataset.idx;
-      state.pages[p].slots[i].productId = null;
+      state.pages[p].slots.splice(i, 1);
+      if(state.pages[p].slots.length === 0){
+        state.pages[p].slots = [{productId: null}];
+      }
       renderPages();
     });
   });
