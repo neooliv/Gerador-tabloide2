@@ -89,11 +89,11 @@
   .slot-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#b7bcc6;font-size:10.5px;text-align:center;padding:8px;border:1.5px dashed #d8dce3;border-radius:8px;margin:4px;}
   .slot.dragover .slot-empty, .slot.dragover .slot-image{outline:2px dashed var(--accent);outline-offset:-2px;}
   
-  /* CONTAINER DA IMAGEM COM REDIMENSIONAMENTO */
-  .slot-image-wrap{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  /* CONTAINER 1:1 DA IMAGEM */
+  .slot-image-wrap{width:100%;aspect-ratio:1/1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
   .slot-image{width:100%;height:100%;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.05s ease-out;}
   
-  /* CONTROLE DO SLIDER DE ESCALA */
+  /* CONTROLE DO SLIDER */
   .img-scale-control{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);padding:3px 6px;border-radius:12px;display:flex;align-items:center;gap:4px;z-index:4;opacity:0;transition:opacity 0.2s;}
   .slot:hover .img-scale-control{opacity:1;}
   .img-scale-control label{color:#fff;font-size:9px;font-weight:bold;}
@@ -104,14 +104,13 @@
   .price-badge .rs{font-size:8px;font-weight:700;}
   .price-badge .val{font-size:12.5px;}
   .price-badge .unit{font-size:6.5px;font-weight:600;opacity:.85;}
-  .slot-info{flex:0 0 auto;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;z-index:2;}
+  .slot-info{flex:1;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;z-index:2;}
   .slot-desc{font-size:9.8px;font-weight:700;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-  .slot-ean{font-size:8px;opacity:.8;font-weight:600;}
+  .slot-code{font-size:8.5px;opacity:.85;font-weight:600;margin-top:2px;}
   .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:5;}
 
   .p-footer{flex:0 0 50px;display:flex;align-items:center;justify-content:center;font-size:10.5px;text-align:center;padding:0 20px;line-height:1.35;}
 
-  /* OCULTA O CONTROLE DURANTE A IMPRESSÃO / EXPORTAÇÃO */
   .rendering .img-scale-control{display:none !important;}
 
   ::-webkit-scrollbar{width:9px;height:9px;}
@@ -131,7 +130,7 @@
       <h3>1 · Planilha de produtos</h3>
       <label class="filepick">
         📄 Clique para enviar .xlsx / .csv<br>
-        <span style="font-size:10px;">Colunas: CÓD.BARRA, CODIGO, MARCA...</span>
+        <span style="font-size:10px;">Colunas: CODIGO, DESCRICAO, MARCA...</span>
         <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" style="display:none;">
       </label>
       <div id="uploadStatus" class="status" style="display:none;"></div>
@@ -277,7 +276,7 @@ function calculateGrid(count){
   return {cols: 4, rows: 3};
 }
 
-/* ============ FILE SYSTEM ACCESS API & FOLDER LOGIC ============ */
+/* ============ FILE SYSTEM ACCESS API ============ */
 document.getElementById('selectFolderBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('folderStatus');
   try {
@@ -306,7 +305,7 @@ document.getElementById('selectFolderBtn').addEventListener('click', async () =>
         state.imagesMap.set(cleanKey, dataUrl);
 
         state.products.forEach(p => {
-          if (normHeader(p.ean) === cleanKey || normHeader(p.code) === cleanKey) {
+          if (normHeader(p.code) === cleanKey || normHeader(p.ean) === cleanKey) {
             p.image = dataUrl;
             linked++;
           }
@@ -351,10 +350,10 @@ async function assignImageFromFile(pIdx, sIdx, file) {
     renderProductList();
 
     if (dirHandle) {
-      const eanOrCode = prod.ean || prod.code;
-      if (eanOrCode) {
+      const codeOrEan = prod.code || prod.ean;
+      if (codeOrEan) {
         const ext = file.name ? (file.name.split('.').pop() || 'jpg') : 'jpg';
-        const fileName = `${eanOrCode}.${ext}`;
+        const fileName = `${codeOrEan}.${ext}`;
         await saveImageToDisk(fileName, file);
         
         const statusEl = document.getElementById('folderStatus');
@@ -388,8 +387,9 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     if(rows.length < 2) throw new Error('Planilha vazia ou sem linhas de dados.');
     const headers = rows[0];
     
-    const eanIdx = findCol(headers, ['CODBARRA', 'BARRA', 'EAN', 'CODIGOBARRA']);
+    // Busca a coluna CODIGO primeiro (conforme imagem)
     const codeIdx = findCol(headers, ['CODIGO', 'COD', 'ID']);
+    const eanIdx = findCol(headers, ['CODBARRA', 'BARRA', 'EAN', 'CODIGOBARRA']);
     const marcaIdx = findCol(headers, ['MARCA', 'BRAND', 'FABRICANTE']);
     const descIdx = findCol(headers, ['DESCRICAODOPRODUTO', 'DESCRICAO', 'PRODUTO', 'NOME']);
     const valorIdx = findCol(headers, ['PCLIQ', 'LIQST', 'VALOR', 'PRECO']);
@@ -399,21 +399,20 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
       const r = rows[i];
       if(!r || r.every(c=>c==='' || c==null)) continue;
       
-      const ean = eanIdx !== -1 ? String(r[eanIdx]??'').trim() : '';
       const code = codeIdx !== -1 ? String(r[codeIdx]??'').trim() : '';
+      const ean = eanIdx !== -1 ? String(r[eanIdx]??'').trim() : '';
       const descricao = descIdx !== -1 ? String(r[descIdx]??'').trim() : '';
       
-      if(!ean && !code && !descricao) continue;
+      if(!code && !ean && !descricao) continue;
       
       const marca = marcaIdx!==-1 && String(r[marcaIdx]??'').trim() !== '' ? String(r[marcaIdx]).trim() : 'GERAL';
       
       let valor = valorIdx !== -1 ? r[valorIdx] : 0;
       if(typeof valor === 'string') valor = Number(valor.replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || Number(valor.replace(/[^\d.,-]/g,'')) || 0;
       
-      let img = state.imagesMap.get(normHeader(ean)) || state.imagesMap.get(normHeader(code)) || null;
+      let img = state.imagesMap.get(normHeader(code)) || state.imagesMap.get(normHeader(ean)) || null;
 
-      // Adicionado imgScale: 1 como padrão (100%)
-      products.push({ id: uid(), ean: ean || code, code, marca, descricao, valor: Number(valor)||0, image: img, imgScale: 1 });
+      products.push({ id: uid(), code: code || ean, ean, marca, descricao, valor: Number(valor)||0, image: img, imgScale: 1 });
     }
     
     if(products.length===0) throw new Error('Nenhum produto válido encontrado na planilha.');
@@ -496,14 +495,14 @@ function renderProductList(){
   const list = document.getElementById('prodList');
   const q = normHeader(document.getElementById('prodSearch').value);
   const items = state.products.filter(p=>p.marca===state.selectedBrand)
-    .filter(p=> !q || normHeader(p.descricao).includes(q) || normHeader(p.ean).includes(q) || normHeader(p.code).includes(q));
+    .filter(p=> !q || normHeader(p.descricao).includes(q) || normHeader(p.code).includes(q) || normHeader(p.ean).includes(q));
   if(items.length===0){ list.innerHTML = '<div class="empty-note">Nenhum produto encontrado.</div>'; return; }
   list.innerHTML = items.map(p=>`
     <div class="proditem" draggable="true" data-pid="${p.id}">
       <div class="thumb" style="${p.image?`background-image:url(${p.image})`:''}"></div>
       <div class="meta">
         <div class="d">${escHtml(p.descricao)}</div>
-        <div class="e">CÓD ${escHtml(p.ean)}</div>
+        <div class="e">CÓDIGO: ${escHtml(p.code)}</div>
       </div>
       <div class="p">R$ ${fmtPrice(p.valor)}</div>
     </div>`).join('');
@@ -616,7 +615,7 @@ function renderPages(){
         <button class="slot-remove" data-page="${pIdx}" data-idx="${sIdx}" title="Remover produto">×</button>
         <div class="slot-info" style="background:${state.style.infoBg};color:${state.style.infoText}">
           <div class="slot-desc">${escHtml(prod.descricao)}</div>
-          <div class="slot-ean">CÓD ${escHtml(prod.ean)}</div>
+          <div class="slot-code">CÓDIGO: ${escHtml(prod.code)}</div>
         </div>
       </div>`;
     }).join('');
@@ -679,7 +678,6 @@ function attachPageEvents(){
     });
   });
 
-  // OUVINTE DO SLIDER DE ESCALA
   document.querySelectorAll('.scaleSlider').forEach(slider=>{
     slider.addEventListener('input', e=>{
       const pid = e.target.dataset.pid;
