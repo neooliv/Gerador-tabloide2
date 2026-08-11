@@ -45,7 +45,6 @@
   .btn.danger{background:#3a1f22;border-color:#5c2a2f;color:#ffb4b4;}
   .btn.small{padding:5px 8px;font-size:11px;}
   .btn.block{width:100%;margin-top:6px;}
-  .btn:disabled{opacity:.45;cursor:not-allowed;}
   .filepick{border:1.5px dashed #384259;border-radius:8px;padding:12px 10px;text-align:center;font-size:12px;color:#9aa5bd;cursor:pointer;display:block;}
   .filepick:hover{border-color:var(--accent);color:#cdd6ea;}
   .status{font-size:11px;color:#78e0a4;margin-top:6px;line-height:1.5;word-break:break-all;}
@@ -76,7 +75,7 @@
   .a4-wrap{background:#fff;box-shadow:0 4px 22px rgba(0,0,0,.14);}
   .a4-page{width:794px;height:1123px;position:relative;display:flex;flex-direction:column;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;}
 
-  .p-header{flex:0 0 100px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;}
+  .p-header{flex:0 0 100px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;position:relative;background-size:cover;background-position:center;}
   .p-header .h-logo{height:64px;width:64px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,.14);padding:4px;}
   .p-header .h-text{flex:1;padding-left:16px;}
   .p-header .h-title{font-size:23px;font-weight:800;letter-spacing:.01em;line-height:1.15;}
@@ -209,6 +208,19 @@
       </div>
       <label style="margin-top:10px;">Logo da marca (opcional)</label>
       <input type="file" id="hdrLogoInput" accept="image/*">
+      <label style="margin-top:10px;">Ou Banner Completo Pronto (2480x370px)</label>
+      <input type="file" id="hdrBannerInput" accept="image/*">
+      <button class="btn block danger small" id="btnRemoveBanner" style="margin-top:6px;display:none;">Remover Banner Imagem</button>
+      <button class="btn block primary" id="btnSaveHeader" style="margin-top:10px;">💾 Salvar Cabeçalho da Marca</button>
+    </div>
+
+    <div class="sec">
+      <h3>Banco de Cabeçalhos/Marcas</h3>
+      <button class="btn block" id="btnExportData">📤 Exportar Banco (JSON)</button>
+      <label class="btn block" style="margin-top:6px;text-align:center;cursor:pointer;">
+        📥 Importar Banco (JSON)
+        <input type="file" id="btnImportData" accept=".json" style="display:none;">
+      </label>
     </div>
 
     <div class="sec">
@@ -258,15 +270,13 @@
 
 </div>
 
-<input type="file" id="hiddenImgInput" accept="image/*" style="display:none;">
-
 <script>
-/* ============ STATE ============ */
+/* ============ STATE & STORAGE ============ */
 const state = {
   products: [],
   brands: [],
   selectedBrand: '',
-  brandHeaders: {},
+  brandHeaders: JSON.parse(localStorage.getItem('tabloide_brandHeaders') || '{}'),
   imagesMap: new Map(),
   footer: {
     text: 'Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas',
@@ -280,11 +290,16 @@ const state = {
   pages: []
 };
 
-let dragImageTarget = null;
 let dirHandle = null;
+
+function saveBrandHeadersToStorage() {
+  localStorage.setItem('tabloide_brandHeaders', JSON.stringify(state.brandHeaders));
+}
 
 /* ============ HELPERS ============ */
 function uid(){ return Math.random().toString(36).slice(2,10); }
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s){ return String(s||'').replace(/"/g,'&quot;'); }
 function fmtPrice(v){
   const n = Number(v)||0;
   return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -311,11 +326,10 @@ function findCol(headers, candidates){
 function defaultHeaderFor(brand){
   const palette = ['#1f2937','#7c2d12','#0f4c3a','#3b1f5e','#8a1c2b','#0c4a6e'];
   const bg = palette[Math.abs(hashStr(brand)) % palette.length];
-  return { title: brand, sub: 'Ofertas válidas enquanto durarem os estoques', bg, text:'#ffffff', logo:null };
+  return { title: brand, sub: 'Ofertas válidas enquanto durarem os estoques', bg, text:'#ffffff', logo:null, banner:null };
 }
 function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i); h|=0;} return h; }
 
-/* REORGANIZAÇÃO INTELIGENTE DA GRADE (MANTEINDO OS CARDS NO MESMO TAMANHO E CENTRALIZADOS) */
 function calculateGridConfig(count){
   if(count <= 1) return { cols: 1, maxCardWidth: '280px' };
   if(count <= 2) return { cols: 2, maxCardWidth: '260px' };
@@ -373,48 +387,6 @@ document.getElementById('selectFolderBtn').addEventListener('click', async () =>
   }
 });
 
-async function saveImageToDisk(fileName, fileOrBlob) {
-  if (!dirHandle) return;
-  try {
-    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(fileOrBlob);
-    await writable.close();
-  } catch (err) {
-    console.error('Erro ao gravar imagem no disco:', err);
-  }
-}
-
-async function assignImageFromFile(pIdx, sIdx, file) {
-  if (!file.type.startsWith('image/')) return;
-  
-  const pid = state.pages[pIdx].slots[sIdx].productId;
-  const prod = getProduct(pid);
-  if (!prod) return;
-
-  const reader = new FileReader();
-  reader.onload = async () => {
-    prod.image = reader.result;
-    renderPages();
-    renderProductList();
-
-    if (dirHandle) {
-      const codeOrEan = prod.code || prod.ean;
-      if (codeOrEan) {
-        const ext = file.name ? (file.name.split('.').pop() || 'jpg') : 'jpg';
-        const fileName = `${codeOrEan}.${ext}`;
-        await saveImageToDisk(fileName, file);
-        
-        const statusEl = document.getElementById('folderStatus');
-        statusEl.style.display = 'block';
-        statusEl.className = 'status';
-        statusEl.textContent = `💾 Salvo na pasta local: ${fileName}`;
-      }
-    }
-  };
-  reader.readAsDataURL(file);
-}
-
 /* ============ EXCEL UPLOAD ============ */
 document.querySelectorAll('.filepick').forEach(fp=>{
   fp.addEventListener('click', e=>{
@@ -436,7 +408,6 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
     if(rows.length < 2) throw new Error('Planilha vazia ou sem linhas de dados.');
     const headers = rows[0];
     
-    // Procura exatamente CODIGO para evitar conflito com CÓD.BARRA
     let codeIdx = findExactCol(headers, 'CODIGO');
     if(codeIdx === -1) codeIdx = findCol(headers, ['COD', 'ID']);
 
@@ -507,11 +478,13 @@ document.getElementById('brandSelect').addEventListener('change', e=>{
 });
 
 function renderHeaderFields(){
+  const btnRemove = document.getElementById('btnRemoveBanner');
   if(!state.selectedBrand) {
     document.getElementById('hdrTitle').value = '';
     document.getElementById('hdrSub').value = '';
     document.getElementById('hdrBg').value = '#1f2937';
     document.getElementById('hdrText').value = '#ffffff';
+    btnRemove.style.display = 'none';
     return;
   }
   const h = state.brandHeaders[state.selectedBrand] || defaultHeaderFor(state.selectedBrand);
@@ -519,6 +492,7 @@ function renderHeaderFields(){
   document.getElementById('hdrSub').value = h.sub||'';
   document.getElementById('hdrBg').value = h.bg||'#1f2937';
   document.getElementById('hdrText').value = h.text||'#ffffff';
+  btnRemove.style.display = h.banner ? 'block' : 'none';
 }
 
 function currentHeaderObj(){
@@ -544,6 +518,61 @@ document.getElementById('hdrLogoInput').addEventListener('change', e=>{
   const reader = new FileReader();
   reader.onload = ()=>{ h.logo = reader.result; renderPages(); };
   reader.readAsDataURL(file);
+});
+
+document.getElementById('hdrBannerInput').addEventListener('change', e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const h = currentHeaderObj(); if(!h) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{ 
+    h.banner = reader.result; 
+    document.getElementById('btnRemoveBanner').style.display = 'block';
+    renderPages(); 
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('btnRemoveBanner').addEventListener('click', ()=>{
+  const h = currentHeaderObj(); if(!h) return;
+  h.banner = null;
+  document.getElementById('btnRemoveBanner').style.display = 'none';
+  document.getElementById('hdrBannerInput').value = '';
+  renderPages();
+});
+
+document.getElementById('btnSaveHeader').addEventListener('click', ()=>{
+  if(!state.selectedBrand){
+    alert('Selecione uma marca primeiro!');
+    return;
+  }
+  saveBrandHeadersToStorage();
+  alert(`Cabeçalho da marca "${state.selectedBrand}" foi salvo no navegador com sucesso!`);
+});
+
+/* EXPORTAR E IMPORTAR CONFIGURAÇÕES EM JSON */
+document.getElementById('btnExportData').addEventListener('click', ()=>{
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.brandHeaders, null, 2));
+  const dlAnchorElem = document.createElement('a');
+  dlAnchorElem.setAttribute("href", dataStr);
+  dlAnchorElem.setAttribute("download", `cabecalhos_tabloides.json`);
+  dlAnchorElem.click();
+});
+
+document.getElementById('btnImportData').addEventListener('change', (e)=>{
+  const fileReader = new FileReader();
+  fileReader.onload = (event) => {
+    try {
+      const importedData = JSON.parse(event.target.result);
+      state.brandHeaders = { ...state.brandHeaders, ...importedData };
+      saveBrandHeadersToStorage();
+      renderHeaderFields();
+      renderPages();
+      alert('Banco de cabeçalhos importado com sucesso!');
+    } catch (err) {
+      alert('Erro ao importar arquivo JSON inválido.');
+    }
+  };
+  if(e.target.files[0]) fileReader.readAsText(e.target.files[0]);
 });
 
 /* ============ FOOTER / STYLE UI ============ */
@@ -640,29 +669,6 @@ document.getElementById('clearAllPagesBtn').addEventListener('click', ()=>{
   }
 });
 
-function removePage(idx){ state.pages.splice(idx,1); renderPages(); }
-function clearPage(idx){ state.pages[idx].slots = Array.from({length: state.pages[idx].slots.length}, ()=>({productId:null})); renderPages(); }
-
-function autoFillPage(idx){
-  const page = state.pages[idx];
-  const used = new Set();
-  state.pages.forEach(pg=>pg.slots.forEach(s=>{ if(s.productId) used.add(s.productId); }));
-  const pool = state.products.filter(p=>p.marca===page.brand && !used.has(p.id));
-  
-  if(pool.length > 0 && page.slots.length < pool.length){
-    const needed = Math.min(pool.length, 9);
-    while(page.slots.length < needed){
-      page.slots.push({productId:null});
-    }
-  }
-  
-  let pi=0;
-  page.slots.forEach(s=>{
-    if(!s.productId && pi<pool.length){ s.productId = pool[pi].id; pi++; }
-  });
-  renderPages();
-}
-
 function getProduct(id){ return state.products.find(p=>p.id===id); }
 
 function renderPages(){
@@ -674,7 +680,6 @@ function renderPages(){
   cont.innerHTML = state.pages.map((page, pIdx)=>{
     const hdr = state.brandHeaders[page.brand] || defaultHeaderFor(page.brand||'Marca');
     
-    // Contamos os slots ativos/preenchidos para determinar a organização inteligente
     const activeSlotsCount = page.slots.filter(s => s.productId !== null).length || page.slots.length || 1;
     const { cols, maxCardWidth } = calculateGridConfig(activeSlotsCount);
 
@@ -709,6 +714,10 @@ function renderPages(){
       </div>`;
     }).join('');
 
+    const headerStyle = hdr.banner 
+      ? `background-image:url(${hdr.banner});` 
+      : `background:${hdr.bg};color:${hdr.text};`;
+
     return `
     <div class="page-block">
       <div class="page-toolbar">
@@ -716,18 +725,19 @@ function renderPages(){
         <select data-page="${pIdx}" class="pageBrandSel">
           ${state.brands.map(b=>`<option value="${escAttr(b)}" ${b===page.brand?'selected':''}>${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('')}
         </select>
-        <button class="btn small" data-act="fill" data-page="${pIdx}">Preencher automático</button>
         <button class="btn small" data-act="clear" data-page="${pIdx}">Limpar</button>
         <button class="btn small danger" data-act="remove" data-page="${pIdx}">Remover página</button>
       </div>
       <div class="a4-wrap">
         <div class="a4-page" id="page-${pIdx}" style="background:${state.style.pageBg};">
-          <div class="p-header" style="background:${hdr.bg};color:${hdr.text};">
-            ${hdr.logo ? `<img class="h-logo" src="${hdr.logo}">` : ''}
-            <div class="h-text">
-              <div class="h-title">${escHtml(hdr.title||page.brand)}</div>
-              <div class="h-sub">${escHtml(hdr.sub||'')}</div>
-            </div>
+          <div class="p-header" style="${headerStyle}">
+            ${!hdr.banner ? `
+              ${hdr.logo ? `<img class="h-logo" src="${hdr.logo}">` : ''}
+              <div class="h-text">
+                <div class="h-title">${escHtml(hdr.title||page.brand)}</div>
+                <div class="h-sub">${escHtml(hdr.sub||'')}</div>
+              </div>
+            ` : ''}
           </div>
           <div class="p-grid-container">
             <div class="p-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
@@ -746,144 +756,114 @@ function renderPages(){
 }
 
 function attachPageEvents(){
-  document.querySelectorAll('.pageBrandSel').forEach(sel=>{
-    sel.addEventListener('change', e=>{
-      const pIdx = +sel.dataset.page;
-      state.pages[pIdx].brand = e.target.value;
-      autoFillPage(pIdx);
-    });
-  });
-  document.querySelectorAll('[data-act]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const idx = +btn.dataset.page;
-      if(btn.dataset.act==='fill') autoFillPage(idx);
-      if(btn.dataset.act==='clear') clearPage(idx);
-      if(btn.dataset.act==='remove') removePage(idx);
-    });
-  });
-  document.querySelectorAll('.slot-remove').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const p = +btn.dataset.page, i = +btn.dataset.idx;
-      state.pages[p].slots.splice(i, 1);
-      if(state.pages[p].slots.length === 0){
-        state.pages[p].slots = [{productId: null}];
-      }
-      renderPages();
-    });
-  });
-
   document.querySelectorAll('.scaleSlider').forEach(slider=>{
     slider.addEventListener('input', e=>{
       const pid = e.target.dataset.pid;
       const prod = getProduct(pid);
       if(prod){
         prod.imgScale = parseFloat(e.target.value);
-        const imgEl = e.target.closest('.slot-image-wrap').querySelector('.slot-image');
-        if(imgEl) imgEl.style.transform = `scale(${prod.imgScale})`;
+        const slotImg = e.target.closest('.slot-image-wrap').querySelector('.slot-image');
+        if(slotImg) slotImg.style.transform = `scale(${prod.imgScale})`;
       }
     });
   });
 
-  document.querySelectorAll('.slot').forEach(el=>{
-    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
-    el.addEventListener('dragleave', ()=> el.classList.remove('dragover'));
-    el.addEventListener('drop', async e=>{
-      e.preventDefault(); el.classList.remove('dragover');
-      const p = +el.dataset.page, i = +el.dataset.idx;
-      const raw = e.dataTransfer.getData('text/plain');
-      let payload = null;
-      try{ payload = JSON.parse(raw); }catch(_e){}
-      if(payload && payload.type==='product'){
-        state.pages[p].slots[i].productId = payload.pid;
-        renderPages();
-        return;
-      }
-      if(e.dataTransfer.files && e.dataTransfer.files.length){
-        await assignImageFromFile(p, i, e.dataTransfer.files[0]);
-      }
+  document.querySelectorAll('.slot-remove').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const pIdx = parseInt(e.target.dataset.page);
+      const sIdx = parseInt(e.target.dataset.idx);
+      state.pages[pIdx].slots[sIdx].productId = null;
+      renderPages();
     });
   });
-  document.querySelectorAll('.slot-image').forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      if(e.target.classList.contains('scaleSlider')) return;
-      const p = +el.dataset.page, i = +el.dataset.idx;
-      if(!state.pages[p].slots[i].productId) return;
-      dragImageTarget = {page:p, idx:i};
-      document.getElementById('hiddenImgInput').click();
+
+  document.querySelectorAll('[data-act="clear"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const pIdx = parseInt(e.target.dataset.page);
+      state.pages[pIdx].slots.forEach(s=>s.productId=null);
+      renderPages();
+    });
+  });
+
+  document.querySelectorAll('[data-act="remove"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const pIdx = parseInt(e.target.dataset.page);
+      state.pages.splice(pIdx, 1);
+      renderPages();
+    });
+  });
+
+  document.querySelectorAll('.pageBrandSel').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const pIdx = parseInt(e.target.dataset.page);
+      state.pages[pIdx].brand = e.target.value;
+      renderPages();
+    });
+  });
+
+  /* DRAG AND DROP */
+  document.querySelectorAll('.slot').forEach(slotEl=>{
+    slotEl.addEventListener('dragover', e=>{ e.preventDefault(); slotEl.classList.add('dragover'); });
+    slotEl.addEventListener('dragleave', ()=>{ slotEl.classList.remove('dragover'); });
+    slotEl.addEventListener('drop', e=>{
+      e.preventDefault();
+      slotEl.classList.remove('dragover');
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if(!dataStr) return;
+      try{
+        const data = JSON.parse(dataStr);
+        if(data.type==='product'){
+          const pIdx = parseInt(slotEl.dataset.page);
+          const sIdx = parseInt(slotEl.dataset.idx);
+          state.pages[pIdx].slots[sIdx].productId = data.pid;
+          renderPages();
+        }
+      }catch(err){}
     });
   });
 }
 
-document.getElementById('hiddenImgInput').addEventListener('change', async e=>{
-  const file = e.target.files[0];
-  if(file && dragImageTarget) await assignImageFromFile(dragImageTarget.page, dragImageTarget.idx, file);
-  e.target.value = '';
-  dragImageTarget = null;
-});
-
-/* ============ EXPORT ============ */
-document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
-  if(state.pages.length===0){ alert('Adicione ao menos uma página antes de exportar.'); return; }
-  const statusEl = document.getElementById('exportStatus');
-  statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent='Gerando PDF...';
-  
-  document.body.classList.add('rendering');
-  
-  try{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
-    const els = document.querySelectorAll('.a4-page');
-    for(let i=0;i<els.length;i++){
-      statusEl.textContent = `Gerando PDF... página ${i+1}/${els.length}`;
-      const canvas = await html2canvas(els[i], {scale:2.5, useCORS:true, backgroundColor:'#ffffff'});
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      if(i>0) doc.addPage();
-      doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-    }
-    doc.save('tabloide.pdf');
-    statusEl.textContent = '✔ PDF gerado com sucesso.';
-  }catch(err){
-    statusEl.className='status err'; statusEl.textContent = '✖ Erro ao gerar PDF: '+err.message;
-  }finally{
-    document.body.classList.remove('rendering');
-  }
-});
-
+/* EXPORTAÇÃO PNG / PDF */
 document.getElementById('exportPngBtn').addEventListener('click', async ()=>{
-  if(state.pages.length===0){ alert('Adicione ao menos uma página antes de exportar.'); return; }
-  const statusEl = document.getElementById('exportStatus');
-  statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent='Gerando PNG...';
-  
+  if(state.pages.length === 0) return alert('Nenhuma página para exportar.');
   document.body.classList.add('rendering');
+  const status = document.getElementById('exportStatus');
+  status.style.display = 'block'; status.textContent = 'Gerando imagens PNG...';
 
-  try{
-    const els = document.querySelectorAll('.a4-page');
-    for(let i=0;i<els.length;i++){
-      statusEl.textContent = `Gerando PNG... página ${i+1}/${els.length}`;
-      const canvas = await html2canvas(els[i], {scale:2.5, useCORS:true, backgroundColor:'#ffffff'});
-      await new Promise(res=>{
-        canvas.toBlob(blob=>{
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = `tabloide_pagina_${i+1}.png`;
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(res, 350);
-        }, 'image/png');
-      });
-    }
-    statusEl.textContent = '✔ PNG(s) gerado(s) com sucesso.';
-  }catch(err){
-    statusEl.className='status err'; statusEl.textContent = '✖ Erro ao gerar PNG: '+err.message;
-  }finally{
-    document.body.classList.remove('rendering');
+  for(let i=0; i<state.pages.length; i++){
+    const pageEl = document.getElementById(`page-${i}`);
+    const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true });
+    const link = document.createElement('a');
+    link.download = `tabloide_pagina_${i+1}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   }
+  document.body.classList.remove('rendering');
+  status.textContent = '✔ Exportação concluída!';
 });
 
-/* ============ UTIL ============ */
-function escHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function escAttr(s){ return escHtml(s); }
+document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
+  if(state.pages.length === 0) return alert('Nenhuma página para exportar.');
+  document.body.classList.add('rendering');
+  const status = document.getElementById('exportStatus');
+  status.style.display = 'block'; status.textContent = 'Gerando documento PDF...';
 
-renderPages();
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+
+  for(let i=0; i<state.pages.length; i++){
+    const pageEl = document.getElementById(`page-${i}`);
+    const canvas = await html2canvas(pageEl, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    
+    if(i > 0) pdf.addPage();
+    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+  }
+  
+  pdf.save('tabloide_completo.pdf');
+  document.body.classList.remove('rendering');
+  status.textContent = '✔ PDF baixado com sucesso!';
+});
 </script>
 </body>
 </html>
