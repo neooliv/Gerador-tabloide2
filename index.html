@@ -101,7 +101,6 @@
     width:100%;
   }
 
-  /* CARD REESTRUTURADO ESTILO REFERÊNCIA */
   .slot{
     width:100%;
     max-width:228px;
@@ -141,7 +140,6 @@
 
   .img-placeholder{font-size:9.5px;color:#98a0ad;text-align:center;padding:6px;line-height:1.4;}
   
-  /* MEIO: CÓDIGO E DESCRIÇÃO */
   .slot-info{
     padding:6px 6px;
     display:flex;
@@ -163,7 +161,6 @@
     overflow:hidden;
   }
 
-  /* BASE: BLOCO DE PREÇO ESTILO GAVETA */
   .slot-price-block{
     display:flex;
     align-items:center;
@@ -200,7 +197,16 @@
 
   .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:5;}
 
-  .p-footer{flex:0 0 50px;display:flex;align-items:center;justify-content:center;font-size:10.5px;text-align:center;padding:0 20px;line-height:1.35;}
+  /* RODAPÉ COM IMAGEM FIXA VIA GITHUB */
+  .p-footer{
+    flex:0 0 90px;
+    background-image: url('./rodape.png');
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+    width: 100%;
+  }
 
   .rendering .img-scale-control{display:none !important;}
 
@@ -262,17 +268,7 @@
     </div>
 
     <div class="sec">
-      <h3>5 · Rodapé padrão</h3>
-      <label>Texto do rodapé</label>
-      <textarea id="footerText">Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas</textarea>
-      <div class="row" style="margin-top:8px;">
-        <div class="colorrow"><input type="color" id="footerBg"><span>Fundo</span></div>
-        <div class="colorrow"><input type="color" id="footerText2"><span>Texto</span></div>
-      </div>
-    </div>
-
-    <div class="sec">
-      <h3>6 · Cores dos destaques</h3>
+      <h3>5 · Cores dos destaques</h3>
       <div class="grid2">
         <div class="colorrow"><input type="color" id="cardBg"><span>Fundo da imagem</span></div>
         <div class="colorrow"><input type="color" id="pageBg"><span>Fundo da página</span></div>
@@ -284,14 +280,14 @@
     </div>
 
     <div class="sec">
-      <h3>7 · Gerar Páginas</h3>
+      <h3>6 · Gerar Páginas</h3>
       <button class="btn block primary" id="generateAllPagesBtn">✨ Gerar páginas da marca selecionada</button>
       <button class="btn block" id="addSinglePageBtn" style="margin-top:6px;">+ Adicionar 1 página vazia</button>
       <button class="btn block danger" id="clearAllPagesBtn" style="margin-top:6px;">🗑️ Limpar todas páginas</button>
     </div>
 
     <div class="sec">
-      <h3>8 · Exportar</h3>
+      <h3>7 · Exportar</h3>
       <button class="btn export block" id="exportPngBtn">⬇ Exportar PNG (uma por página)</button>
       <button class="btn export pdf block" id="exportPdfBtn">⬇ Exportar PDF (documento completo)</button>
       <div id="exportStatus" class="status" style="display:none;"></div>
@@ -316,10 +312,6 @@ const state = {
   selectedBrand: '',
   brandHeaders: JSON.parse(localStorage.getItem('tabloide_brandHeaders') || '{}'),
   imagesMap: new Map(),
-  footer: {
-    text: 'Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas',
-    bg: '#111827', textColor: '#ffffff'
-  },
   style: {
     cardBg: '#ffffff', pageBg: '#ffffff',
     infoBg: '#0f3d7a', infoText: '#ffffff',
@@ -493,7 +485,6 @@ document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
       
       const marca = marcaIdx!==-1 && String(r[marcaIdx]??'').trim() !== '' ? String(r[marcaIdx]).trim() : 'GERAL';
       
-      // PARSE CORRIGIDO DE VALORES
       let valor = valorIdx !== -1 ? r[valorIdx] : 0;
       if (typeof valor === 'string') {
         let vStr = valor.trim().replace(/[^\d.,]/g, '');
@@ -626,14 +617,6 @@ document.getElementById('btnSaveHeader').addEventListener('click', ()=>{
   alert(`Cabeçalho da marca "${state.selectedBrand}" salvo com sucesso!`);
 });
 
-/* ============ FOOTER / STYLE UI ============ */
-document.getElementById('footerText').value = state.footer.text;
-document.getElementById('footerBg').value = state.footer.bg;
-document.getElementById('footerText2').value = state.footer.textColor;
-document.getElementById('footerBg').addEventListener('input', e=>{ state.footer.bg=e.target.value; renderPages(); });
-document.getElementById('footerText2').addEventListener('input', e=>{ state.footer.textColor=e.target.value; renderPages(); });
-document.getElementById('footerText').addEventListener('input', e=>{ state.footer.text = e.target.value; renderPages(); });
-
 ['cardBg','pageBg','infoBg','infoText','priceBg','priceText'].forEach(id=>{
   document.getElementById(id).value = state.style[id];
   document.getElementById(id).addEventListener('input', e=>{
@@ -745,7 +728,6 @@ function renderPages(){
       const priceParts = splitPrice(prod.valor);
 
       return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}" style="max-width:${maxCardWidth};">
-        <!-- 1. IMAGEM DO PRODUTO (TOPO) -->
         <div class="slot-image-wrap" style="background-color:${state.style.cardBg};">
           <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
                style="${prod.image?`background-image:url(${prod.image});`:''}transform:scale(${scale});">
@@ -760,12 +742,10 @@ function renderPages(){
         
         <button class="slot-remove" data-page="${pIdx}" data-idx="${sIdx}" title="Remover produto">×</button>
 
-        <!-- 2. FAIXA DO MEIO: CÓDIGO + DESCRIÇÃO -->
         <div class="slot-info" style="background:${state.style.infoBg};color:${state.style.infoText}">
           <div class="slot-desc-text">${escHtml(prod.code ? prod.code + ' - ' : '')}${escHtml(prod.descricao)}</div>
         </div>
 
-        <!-- 3. BASE DO CARD: PREÇO ABAIXO -->
         <div class="slot-price-block" style="background:${state.style.priceBg};color:${state.style.priceText}">
           <div class="price-wrapper">
             <span class="rs">R$</span>
@@ -807,9 +787,7 @@ function renderPages(){
               ${slotsHtml}
             </div>
           </div>
-          <div class="p-footer" style="background:${state.footer.bg};color:${state.footer.textColor};">
-            ${escHtml(state.footer.text)}
-          </div>
+          <div class="p-footer"></div>
         </div>
       </div>
     </div>`;
@@ -864,7 +842,6 @@ function attachPageEvents(){
     });
   });
 
-  /* DRAG AND DROP */
   document.querySelectorAll('.slot').forEach(slotEl=>{
     slotEl.addEventListener('dragover', e=>{ e.preventDefault(); slotEl.classList.add('dragover'); });
     slotEl.addEventListener('dragleave', ()=>{ slotEl.classList.remove('dragover'); });
