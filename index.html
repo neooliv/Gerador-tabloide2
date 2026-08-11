@@ -81,7 +81,6 @@
   .p-header .h-title{font-size:23px;font-weight:800;letter-spacing:.01em;line-height:1.15;}
   .p-header .h-sub{font-size:12px;opacity:.85;margin-top:3px;}
 
-  /* INTELLIGENT & CENTERED GRID CONTAINER */
   .p-grid-container{
     flex:1;
     display:flex;
@@ -93,7 +92,6 @@
     overflow:hidden;
   }
   
-  /* GRID DE TAMANHO PADRÃO UNIFORME */
   .p-grid{
     display:grid;
     gap:12px;
@@ -103,7 +101,6 @@
     width:100%;
   }
 
-  /* CARD FIXO COM PROPORÇÃO E TAMANHO PADRÃO */
   .slot{
     width:100%;
     max-width:228px;
@@ -133,11 +130,9 @@
   }
   .slot.dragover .slot-empty, .slot.dragover .slot-image{outline:2px dashed var(--accent);outline-offset:-2px;}
   
-  /* CONTAINER 1:1 DA IMAGEM */
   .slot-image-wrap{width:100%;aspect-ratio:1/1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
   .slot-image{width:100%;height:100%;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.05s ease-out;}
   
-  /* CONTROLE DO SLIDER */
   .img-scale-control{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.65);padding:3px 6px;border-radius:12px;display:flex;align-items:center;gap:4px;z-index:4;opacity:0;transition:opacity 0.2s;}
   .slot:hover .img-scale-control{opacity:1;}
   .img-scale-control label{color:#fff;font-size:9px;font-weight:bold;}
@@ -181,7 +176,7 @@
     </div>
 
     <div class="sec">
-      <h3>2 · Pasta de imagens (Automático)</h3>
+      <h3>2 · Pasta de imagens (Fotos & Banners)</h3>
       <button type="button" class="btn block primary" id="selectFolderBtn">
         📁 Conectar pasta de fotos do PC
       </button>
@@ -212,15 +207,6 @@
       <input type="file" id="hdrBannerInput" accept="image/*">
       <button class="btn block danger small" id="btnRemoveBanner" style="margin-top:6px;display:none;">Remover Banner Imagem</button>
       <button class="btn block primary" id="btnSaveHeader" style="margin-top:10px;">💾 Salvar Cabeçalho da Marca</button>
-    </div>
-
-    <div class="sec">
-      <h3>Banco de Cabeçalhos/Marcas</h3>
-      <button class="btn block" id="btnExportData">📤 Exportar Banco (JSON)</button>
-      <label class="btn block" style="margin-top:6px;text-align:center;cursor:pointer;">
-        📥 Importar Banco (JSON)
-        <input type="file" id="btnImportData" accept=".json" style="display:none;">
-      </label>
     </div>
 
     <div class="sec">
@@ -339,7 +325,7 @@ function calculateGridConfig(count){
   return { cols: 3, maxCardWidth: '228px' };
 }
 
-/* ============ FILE SYSTEM ACCESS API ============ */
+/* ============ FILE SYSTEM ACCESS API (PRODUTOS E BANNERS DE MARCA) ============ */
 document.getElementById('selectFolderBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('folderStatus');
   try {
@@ -352,30 +338,50 @@ document.getElementById('selectFolderBtn').addEventListener('click', async () =>
     statusEl.className = 'status';
     statusEl.textContent = `Lendo pasta "${dirHandle.name}"...`;
 
-    let linked = 0;
+    let linkedProds = 0;
+    let linkedBanners = 0;
+
     for await (const entry of dirHandle.values()) {
       if (entry.kind === 'file' && entry.name.match(/\.(jpg|jpeg|png|webp)$/i)) {
         const file = await entry.getFile();
         const fname = entry.name.substring(0, entry.name.lastIndexOf('.')) || entry.name;
-        const cleanKey = normHeader(fname);
-
+        
         const reader = new FileReader();
         const dataUrl = await new Promise(res => {
           reader.onload = () => res(reader.result);
           reader.readAsDataURL(file);
         });
 
-        state.imagesMap.set(cleanKey, dataUrl);
+        // VERIFICA SE É UM BANNER DE MARCA (Ex: marca_YOKO.jpg, marca_NESTLE.png)
+        if (normHeader(fname).startsWith('MARCA')) {
+          const brandNameFromBanner = fname.replace(/^marca[-_]/i, '').trim();
+          const cleanBrandKey = normHeader(brandNameFromBanner);
 
-        state.products.forEach(p => {
-          if (normHeader(p.code) === cleanKey || normHeader(p.ean) === cleanKey) {
-            p.image = dataUrl;
-            linked++;
-          }
-        });
+          state.brands.forEach(b => {
+            if (normHeader(b) === cleanBrandKey) {
+              if (!state.brandHeaders[b]) state.brandHeaders[b] = defaultHeaderFor(b);
+              state.brandHeaders[b].banner = dataUrl;
+              linkedBanners++;
+            }
+          });
+        } 
+        // CASO CONTRÁRIO, É TRATADO COMO IMAGEM DE PRODUTO
+        else {
+          const cleanKey = normHeader(fname);
+          state.imagesMap.set(cleanKey, dataUrl);
+
+          state.products.forEach(p => {
+            if (normHeader(p.code) === cleanKey || normHeader(p.ean) === cleanKey) {
+              p.image = dataUrl;
+              linkedProds++;
+            }
+          });
+        }
       }
     }
-    statusEl.textContent = `✔ Conectado! ${linked} foto(s) vinculada(s). Acesso de escrita ativado!`;
+
+    statusEl.textContent = `✔ Conectado! ${linkedProds} foto(s) de produto e ${linkedBanners} banner(s) de marca vinculados.`;
+    renderHeaderFields();
     renderProductList();
     renderPages();
   } catch (err) {
@@ -546,33 +552,7 @@ document.getElementById('btnSaveHeader').addEventListener('click', ()=>{
     return;
   }
   saveBrandHeadersToStorage();
-  alert(`Cabeçalho da marca "${state.selectedBrand}" foi salvo no navegador com sucesso!`);
-});
-
-/* EXPORTAR E IMPORTAR CONFIGURAÇÕES EM JSON */
-document.getElementById('btnExportData').addEventListener('click', ()=>{
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.brandHeaders, null, 2));
-  const dlAnchorElem = document.createElement('a');
-  dlAnchorElem.setAttribute("href", dataStr);
-  dlAnchorElem.setAttribute("download", `cabecalhos_tabloides.json`);
-  dlAnchorElem.click();
-});
-
-document.getElementById('btnImportData').addEventListener('change', (e)=>{
-  const fileReader = new FileReader();
-  fileReader.onload = (event) => {
-    try {
-      const importedData = JSON.parse(event.target.result);
-      state.brandHeaders = { ...state.brandHeaders, ...importedData };
-      saveBrandHeadersToStorage();
-      renderHeaderFields();
-      renderPages();
-      alert('Banco de cabeçalhos importado com sucesso!');
-    } catch (err) {
-      alert('Erro ao importar arquivo JSON inválido.');
-    }
-  };
-  if(e.target.files[0]) fileReader.readAsText(e.target.files[0]);
+  alert(`Cabeçalho da marca "${state.selectedBrand}" salvo com sucesso!`);
 });
 
 /* ============ FOOTER / STYLE UI ============ */
